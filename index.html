@@ -1695,7 +1695,7 @@ function loadPersonalBestStreak(name){
     const data = snapshot.val();
     const bestStreak = data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0);
 
-    const bestTime = data && data.bestStreakTime ? data.bestStreakTime : "00:00";
+    const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00" ? data.bestStreakTime : "not recorded yet";
     display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime;
     display.classList.remove("hidden");
   }).catch(function(){
@@ -1714,28 +1714,38 @@ function updatePersonalBestStreak(){
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val() || {};
     const oldBest = old.bestStreak || old.streak || 0;
+    const oldBestTimeMissing = !old.bestStreakTime || old.bestStreakTime === "00:00";
 
+    // Update if the student beats their old streak.
     if(streak > oldBest){
       studentRef.update({
         bestStreak: streak,
         bestStreakSeconds: currentPlaySeconds || 0,
         bestStreakTime: getCurrentPlayTimeText()
       });
+
       const display = document.getElementById("personalBestStreakDisplay");
       if(display){
         display.textContent = "New personal best streak: " + streak + " 🔥  |  Time played: " + getCurrentPlayTimeText();
         display.classList.remove("hidden");
       }
+      return;
+    }
+
+    // Repair older Firebase records that had a best streak but no time recorded.
+    if(streak === oldBest && streak > 0 && oldBestTimeMissing){
+      studentRef.update({
+        bestStreakSeconds: currentPlaySeconds || 0,
+        bestStreakTime: getCurrentPlayTimeText()
+      });
+
+      const display = document.getElementById("personalBestStreakDisplay");
+      if(display){
+        display.textContent = "Your best streak so far: " + oldBest + " 🔥  |  Time played: " + getCurrentPlayTimeText();
+        display.classList.remove("hidden");
+      }
     }
   });
-}
-
-
-function calculatePerformancePoints(scoreValue, attemptsValue, accuracyValue, streakValue, secondsValue){
-  // Combines score, accuracy, streak and time.
-  // Higher score, accuracy and streak help; taking too long lowers the result slightly.
-  const timePenalty = Math.floor((secondsValue || 0) / 5);
-  return Math.max(0, (scoreValue * 100) + (accuracyValue * 2) + (streakValue * 25) - timePenalty);
 }
 
 function updateOnlineLeaderboard(){
@@ -1773,7 +1783,10 @@ function updateOnlineLeaderboard(){
       if(old && old.bestStreak && old.bestStreak > current.bestStreak){
         current.bestStreak = old.bestStreak;
         current.bestStreakSeconds = old.bestStreakSeconds || old.playSeconds || 0;
-        current.bestStreakTime = old.bestStreakTime || old.playTime || "00:00";
+        current.bestStreakTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : (old.playTime || getCurrentPlayTimeText());
+      } else if(old && old.bestStreak && old.bestStreak === current.bestStreak){
+        current.bestStreakTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
+        current.bestStreakSeconds = old.bestStreakSeconds || currentPlaySeconds || 0;
       }
       studentRef.set(current);
     } else if(old && streak > (old.bestStreak || old.streak || 0)){
@@ -1818,7 +1831,7 @@ function renderLeaderboardFromData(data){
           '<td>' + (entry.name || "Unnamed") + '</td>' +
           '<td>' + (entry.score || 0) + '/' + (entry.attempts || 0) + '</td>' +
           '<td>' + (entry.accuracy || 0) + '%</td>' +
-          '<td>' + (entry.bestStreak || entry.streak || 0) + '</td>' + '<td>' + (entry.bestStreakTime || entry.playTime || '00:00') + '</td>' + '<td>' + (entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0)) + '</td>' +
+          '<td>' + (entry.bestStreak || entry.streak || 0) + '</td>' + '<td>' + ((entry.bestStreakTime && entry.bestStreakTime !== '00:00') ? entry.bestStreakTime : (entry.playTime && entry.playTime !== '00:00' ? entry.playTime : 'not recorded')) + '</td>' + '<td>' + (entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0)) + '</td>' +
           '</tr>';
       }).join("") +
       '</tbody></table>';
