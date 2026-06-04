@@ -11,7 +11,7 @@
 <body>
 <div id="startScreen" class="start-screen"><div class="start-card"><div class="badge">✨ French Conjugation Challenge</div><h1>Conjugaison Battle</h1><p>Enter your name before starting.</p><input id="startStudentName" type="text" placeholder="Type your name here" autocomplete="off"><div id="startError" class="start-error"></div><button id="startActivityButton">Start activity 🚀</button></div></div>
 <div id="emojiBurst" class="emoji-burst"></div><div id="wrongEmojiBurst" class="wrong-emoji"></div>
-<div class="container"><header><div class="badge">✨ French Conjugation Challenge</div><h1>Conjugaison Battle</h1><p class="subtitle">Stable classroom version with exact accents and persistent corrections.</p></header><main class="grid"><section class="card"><input id="studentName" type="hidden"><div id="currentStudentDisplay" class="current-student hidden"></div><div id="verifiedStatusDisplay" class="verified-status">VERSION 2026-06-04 ABSOLUTE SE SOUVENIR FIX: custom verb se souvenir = me souviendrai / nous nous souviendrons, never me souvenirai.</div><div id="personalBestStreakDisplay" class="personal-best-streak hidden"></div><div id="playTimerDisplay" class="timer-box hidden">Time played: 00:00</div><div class="controls"><div><label for="category">Verb category</label><select id="category"><option value="all">All verbs</option><option value="er">ER verbs</option><option value="ir">IR verbs</option><option value="reoir">RE / OIR verbs</option><option value="irregular">Irregular verbs</option><option value="reflexive">Reflexive verbs</option></select></div><div><label for="tense">Tense / mood</label><select id="tense"><option value="randomTense">Random tense / Temps aléatoire</option><option value="present">Présent de l’indicatif</option><option value="passeCompose">Passé composé</option><option value="imparfait">Imparfait</option><option value="plusQueParfait">Plus-que-parfait</option><option value="passeSimple">Passé simple</option><option value="futur">Futur simple</option><option value="futurAnterieur">Futur antérieur</option><option value="imperatif">Impératif</option><option value="participes">Participe présent / Participe passé</option><option value="infinitifPasse">Infinitif passé</option><option value="conditionnel">Présent du conditionnel</option><option value="conditionnelPasse">Conditionnel passé</option><option value="subjonctif">Présent du subjonctif</option></select></div><div><label for="mode">Mode</label><select id="mode"><option value="random">Random verb</option><option value="custom">My own verb</option></select></div></div><div class="controls" style="grid-template-columns:1fr auto auto"><input id="customVerb" type="text" placeholder="Type your own infinitive, e.g. suivre"><button id="useVerbButton">Use verb</button><button class="warning" id="resetButton">Reset</button></div><div class="row" style="margin-bottom:12px"><button class="secondary" id="soundButton">🔊 Sound: ON</button></div><div class="feedback info">Accents are compulsory. For example, <strong>étais</strong> is correct but <strong>etais</strong> is incorrect. After a wrong answer, the correction stays until <strong>Skip</strong> is pressed.</div><div class="question-box"><p>Conjugate this verb:</p><h2 id="verb">parler</h2><div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">to speak</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div><label for="answer">Your answer</label><input id="answer" class="answer-input" type="text" placeholder="Type the answer here" autocomplete="off"><div class="row"><button id="checkButton">Check</button><button class="secondary" id="skipButton">Skip</button><button class="secondary" id="hintButton">Hint</button></div><div id="feedback"></div></div></section><aside><section class="card"><h2>🏆 Scoreboard</h2><div class="score-card"><small>Score</small><div><span id="score">0</span>/<span id="attempts">0</span></div></div><div class="score-card"><small>Accuracy</small><div><span id="accuracy">0</span>%</div></div><div class="score-card"><small>Streak</small><div><span id="streak">0</span> 🔥</div></div></section><section class="card" style="margin-top:18px"><h2>🏅 Leaderboard</h2><div id="leaderboardContainer"><p class="leaderboard-empty">No scores yet.</p></div><div id="leaderboardStatus" class="leaderboard-status">Local leaderboard ready.</div></section><section class="card" style="margin-top:18px"><h2>Verb pool</h2><div id="verbPool" class="verb-list"></div></section><section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For spelling practice, students must type the whole phrase with correct accents.</p></section></aside></main><footer>Single-file web app. Upload as index.html.</footer></div>
+<div class="container"><header><div class="badge">✨ French Conjugation Challenge</div><h1>Conjugaison Battle</h1><p class="subtitle">Stable classroom version with exact accents and persistent corrections.</p></header><main class="grid"><section class="card"><input id="studentName" type="hidden"><div id="currentStudentDisplay" class="current-student hidden"></div><div id="verifiedStatusDisplay" class="verified-status">VERSION 2026-06-05 FIREBASE-ONLY TIMER FIX: session timer starts at 00:00 and history does not use browser storage.</div><div id="personalBestStreakDisplay" class="personal-best-streak hidden"></div><div id="playTimerDisplay" class="timer-box hidden">Time played: 00:00</div><div class="controls"><div><label for="category">Verb category</label><select id="category"><option value="all">All verbs</option><option value="er">ER verbs</option><option value="ir">IR verbs</option><option value="reoir">RE / OIR verbs</option><option value="irregular">Irregular verbs</option><option value="reflexive">Reflexive verbs</option></select></div><div><label for="tense">Tense / mood</label><select id="tense"><option value="randomTense">Random tense / Temps aléatoire</option><option value="present">Présent de l’indicatif</option><option value="passeCompose">Passé composé</option><option value="imparfait">Imparfait</option><option value="plusQueParfait">Plus-que-parfait</option><option value="passeSimple">Passé simple</option><option value="futur">Futur simple</option><option value="futurAnterieur">Futur antérieur</option><option value="imperatif">Impératif</option><option value="participes">Participe présent / Participe passé</option><option value="infinitifPasse">Infinitif passé</option><option value="conditionnel">Présent du conditionnel</option><option value="conditionnelPasse">Conditionnel passé</option><option value="subjonctif">Présent du subjonctif</option></select></div><div><label for="mode">Mode</label><select id="mode"><option value="random">Random verb</option><option value="custom">My own verb</option></select></div></div><div class="controls" style="grid-template-columns:1fr auto auto"><input id="customVerb" type="text" placeholder="Type your own infinitive, e.g. suivre"><button id="useVerbButton">Use verb</button><button class="warning" id="resetButton">Reset</button></div><div class="row" style="margin-bottom:12px"><button class="secondary" id="soundButton">🔊 Sound: ON</button></div><div class="feedback info">Accents are compulsory. For example, <strong>étais</strong> is correct but <strong>etais</strong> is incorrect. After a wrong answer, the correction stays until <strong>Skip</strong> is pressed.</div><div class="question-box"><p>Conjugate this verb:</p><h2 id="verb">parler</h2><div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">to speak</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div><label for="answer">Your answer</label><input id="answer" class="answer-input" type="text" placeholder="Type the answer here" autocomplete="off"><div class="row"><button id="checkButton">Check</button><button class="secondary" id="skipButton">Skip</button><button class="secondary" id="hintButton">Hint</button></div><div id="feedback"></div></div></section><aside><section class="card"><h2>🏆 Scoreboard</h2><div class="score-card"><small>Score</small><div><span id="score">0</span>/<span id="attempts">0</span></div></div><div class="score-card"><small>Accuracy</small><div><span id="accuracy">0</span>%</div></div><div class="score-card"><small>Streak</small><div><span id="streak">0</span> 🔥</div></div></section><section class="card" style="margin-top:18px"><h2>🏅 Leaderboard</h2><div id="leaderboardContainer"><p class="leaderboard-empty">No scores yet.</p></div><div id="leaderboardStatus" class="leaderboard-status">Local leaderboard ready.</div></section><section class="card" style="margin-top:18px"><h2>Verb pool</h2><div id="verbPool" class="verb-list"></div></section><section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For spelling practice, students must type the whole phrase with correct accents.</p></section></aside></main><footer>Single-file web app. Upload as index.html.</footer></div>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
@@ -183,72 +183,96 @@ function showFunnyAnimalPop(){const o=document.createElement('div');o.className=
 function playerKey(){return 'conjugaisonBattlePlayer_'+cleanStudentKey($('studentName').value||'guest')}
 function formatTime(s){s=safeNum(s);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
 let bestStreakSeconds=0;
-function historyText(){return 'Your best streak so far: '+safeNum(personalBestStreakValue)+' 🔥 | Time to reach it: '+formatTime(bestStreakSeconds)}
+function historyText(){return 'Your best streak so far: '+safeNum(personalBestStreakValue)+' 🔥 | Best streak reached at: '+formatTime(bestStreakSeconds)}
 function showHistory(){const box=$('personalBestStreakDisplay');box.textContent=historyText();box.classList.remove('hidden')}
-function localHistory(){try{return JSON.parse(localStorage.getItem(playerKey())||'{}')}catch(e){return {}}}
-function saveLocalHistory(){if(!$('studentName').value)return;localStorage.setItem(playerKey(),JSON.stringify({bestStreak:safeNum(personalBestStreakValue),bestStreakSeconds:safeNum(bestStreakSeconds)}))}
-async function loadPersonalBestStreak(){
-  personalBestStreakValue=0; bestStreakSeconds=0; savedPlaySecondsBeforeSession=0; currentPlaySeconds=0; showHistory();
-  const name=$('studentName').value||'Guest';
-  const local=localHistory();
-  personalBestStreakValue=safeNum(local.bestStreak); bestStreakSeconds=safeNum(local.bestStreakSeconds); showHistory();
-  if(!onlineStudentsRef){$('leaderboardStatus').textContent='Online history not connected. Using this browser only.'; return;}
+function clearOldBrowserTimerHistory(){
+  // This app no longer reads/saves player timer or streak history in Chrome/Safari storage.
+  // Old keys from earlier versions are removed so they cannot make the timer resume.
   try{
-    $('leaderboardStatus').textContent='Loading online history...';
+    const current=playerKey();
+    localStorage.removeItem(current);
+    localStorage.removeItem('conjugaisonBattleLeaderboard');
+    localStorage.removeItem('conjugaisonBattleTotalSeconds');
+    localStorage.removeItem('conjugaisonBattleSessionSeconds');
+    localStorage.removeItem('conjugaisonBattleTimer');
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i)||'';
+      if(k.startsWith('conjugaisonBattlePlayer_') || k.includes('totalSeconds') || k.includes('sessionSeconds')) localStorage.removeItem(k);
+    }
+  }catch(e){}
+}
+async function loadPersonalBestStreak(){
+  personalBestStreakValue=0; bestStreakSeconds=0; currentPlaySeconds=0; savedPlaySecondsBeforeSession=0; showHistory();
+  const name=$('studentName').value||'Guest';
+  if(!onlineStudentsRef){
+    $('leaderboardStatus').textContent='Firebase is not connected. Online streak history cannot sync. The session timer still starts at 00:00.';
+    return;
+  }
+  try{
+    $('leaderboardStatus').textContent='Loading online history from Firebase...';
     const snap=await onlineStudentsRef.child(cleanStudentKey(name)).once('value');
     const d=snap.val()||{};
     personalBestStreakValue=safeNum(d.bestStreak);
     bestStreakSeconds=safeNum(d.bestStreakSeconds);
-    saveLocalHistory(); showHistory();
-    $('leaderboardStatus').textContent='Online history connected for '+name+'.';
-  }catch(e){$('leaderboardStatus').textContent='Online history could not load. Using this browser only. '+e.message; showHistory();}
+    showHistory();
+    $('leaderboardStatus').textContent='Online Firebase history connected for '+name+'.';
+  }catch(e){
+    personalBestStreakValue=0; bestStreakSeconds=0; showHistory();
+    $('leaderboardStatus').textContent='Firebase history could not load, so history is not synced. '+e.message;
+  }
 }
 async function saveOnlineHistory(){
   if(!$('studentName').value)return;
   const name=$('studentName').value||'Guest';
   const payload={name,bestStreak:safeNum(personalBestStreakValue),bestStreakSeconds:safeNum(bestStreakSeconds),score:safeNum(score),attempts:safeNum(attempts),accuracy:attempts?Math.round(score/attempts*100):0,lastPlayed:new Date().toISOString()};
-  saveLocalHistory();
   if(onlineStudentsRef){try{await onlineStudentsRef.child(cleanStudentKey(name)).update(payload)}catch(e){$('leaderboardStatus').textContent='Online history save failed. '+e.message}}
-  if(onlineLeaderboardRef){try{await onlineLeaderboardRef.child(cleanStudentKey(name)).update(payload)}catch(e){/* already reported above when relevant */}}
+  if(onlineLeaderboardRef){try{await onlineLeaderboardRef.child(cleanStudentKey(name)).update(payload)}catch(e){/* keep using the visible message above */}}
 }
 function updatePersonalBestStreak(){
   const s=safeNum(streak);
   if(s>0 && (s>safeNum(personalBestStreakValue) || (s===safeNum(personalBestStreakValue) && (safeNum(bestStreakSeconds)===0 || safeNum(currentPlaySeconds)<safeNum(bestStreakSeconds))))){
     personalBestStreakValue=s; bestStreakSeconds=safeNum(currentPlaySeconds);
+    showHistory(); saveOnlineHistory();
+  }else{
+    showHistory();
   }
-  showHistory(); saveOnlineHistory();
 }
 function startTimer(){
-  playStartTime=Date.now(); currentPlaySeconds=0; savedPlaySecondsBeforeSession=0;
-  $('playTimerDisplay').textContent='Time played: 00:00'; $('playTimerDisplay').classList.remove('hidden');
   if(playTimerInterval)clearInterval(playTimerInterval);
-  playTimerInterval=setInterval(()=>{currentPlaySeconds=Math.floor((Date.now()-playStartTime)/1000);$('playTimerDisplay').textContent='Time played: '+formatTime(currentPlaySeconds)},1000)
+  playStartTime=performance.now(); currentPlaySeconds=0; savedPlaySecondsBeforeSession=0;
+  $('playTimerDisplay').textContent='Time played this session: 00:00'; $('playTimerDisplay').classList.remove('hidden');
+  playTimerInterval=setInterval(()=>{
+    currentPlaySeconds=Math.floor((performance.now()-playStartTime)/1000);
+    $('playTimerDisplay').textContent='Time played this session: '+formatTime(currentPlaySeconds);
+  },1000)
 }
-function board(){try{return JSON.parse(localStorage.getItem('conjugaisonBattleLeaderboard')||'[]')}catch(e){return []}}
-function saveBoard(b){localStorage.setItem('conjugaisonBattleLeaderboard',JSON.stringify(b.slice(0,20)))}
+function board(){return []}
+function saveBoard(b){}
 function updateLeaderboard(){
-  const name=$('studentName').value||'Guest';
-  let b=board().filter(x=>x.name!==name);
-  b.push({name,score:safeNum(score),attempts:safeNum(attempts),accuracy:attempts?Math.round(score/attempts*100):0,bestStreak:safeNum(personalBestStreakValue),bestStreakSeconds:safeNum(bestStreakSeconds)});
-  b.sort((a,c)=>(c.score-a.score)||(c.accuracy-a.accuracy)||(c.bestStreak-a.bestStreak)||(safeNum(a.bestStreakSeconds||999999)-safeNum(c.bestStreakSeconds||999999)));
-  saveBoard(b); renderBoard(b); saveOnlineHistory(); renderOnlineLeaderboard();
+  saveOnlineHistory();
+  renderOnlineLeaderboard();
 }
 async function renderOnlineLeaderboard(){
-  if(!onlineLeaderboardRef){renderBoard(board());return;}
+  if(!onlineLeaderboardRef){renderBoard([]);$('leaderboardStatus').textContent='Firebase is not connected. Online leaderboard unavailable.';return;}
   try{
     const snap=await onlineLeaderboardRef.once('value');
     const arr=Object.values(snap.val()||{});
-    if(arr.length){arr.sort((a,b)=>(safeNum(b.score)-safeNum(a.score))||((safeNum(b.accuracy)-safeNum(a.accuracy)))||(safeNum(b.bestStreak)-safeNum(a.bestStreak))||(safeNum(a.bestStreakSeconds||999999)-safeNum(b.bestStreakSeconds||999999)));renderBoard(arr.slice(0,20));$('leaderboardStatus').textContent='Live online leaderboard connected.';}
-  }catch(e){$('leaderboardStatus').textContent='Online leaderboard could not load. Showing this browser only. '+e.message; renderBoard(board());}
+    arr.sort((a,b)=>(safeNum(b.score)-safeNum(a.score))||((safeNum(b.accuracy)-safeNum(a.accuracy)))||(safeNum(b.bestStreak)-safeNum(a.bestStreak))||(safeNum(a.bestStreakSeconds||999999)-safeNum(b.bestStreakSeconds||999999)));
+    renderBoard(arr.slice(0,20));
+    $('leaderboardStatus').textContent='Live online Firebase leaderboard connected.';
+  }catch(e){$('leaderboardStatus').textContent='Online leaderboard could not load. '+e.message; renderBoard([]);}
 }
 function renderBoard(b){if(!b.length){$('leaderboardContainer').innerHTML='<p class="leaderboard-empty">No scores yet.</p>';return}$('leaderboardContainer').innerHTML='<table class="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Acc.</th><th>Best</th><th>Best time</th></tr></thead><tbody>'+b.slice(0,20).map((r,i)=>`<tr><td>${i+1}</td><td>${r.name||'Guest'}</td><td>${safeNum(r.score)}/${safeNum(r.attempts)}</td><td>${safeNum(r.accuracy)}%</td><td>${safeNum(r.bestStreak)} 🔥</td><td>${formatTime(r.bestStreakSeconds)}</td></tr>`).join('')+'</tbody></table>'}
 async function startActivity(){
   const name=$('startStudentName').value.trim();
   if(!name){$('startError').textContent='Please type your name first.';return}
   $('studentName').value=name; $('currentStudentDisplay').textContent='Current student: '+name; $('currentStudentDisplay').classList.remove('hidden'); $('startScreen').classList.add('hidden');
-  await loadPersonalBestStreak(); startTimer(); newQuestion(); updateLeaderboard(); $('answer').focus();
+  clearOldBrowserTimerHistory();
+  startTimer();
+  await loadPersonalBestStreak();
+  newQuestion(); updateLeaderboard(); $('answer').focus();
 }
-function init(){try{initFirebase(); if(answerFor('suivre','participes','je')!=='suivant / suivi')throw new Error('suivre test failed'); if(answerFor('se souvenir','futur','je')!=='me souviendrai')throw new Error('se souvenir je future test failed: '+answerFor('se souvenir','futur','je')); if(answerFor('se souvenir','futur','nous')!=='nous nous souviendrons')throw new Error('se souvenir nous future test failed: '+answerFor('se souvenir','futur','nous')); $('verifiedStatusDisplay').textContent='VERSION 2026-06-05 FIREBASE ONLINE HISTORY FIX LOADED: timer always starts at 00:00; best streak and best-streak time sync online.';}catch(e){$('verifiedStatusDisplay').textContent='App message: '+e.message} updateSoundButton();updateScore();updateVerbPool();renderOnlineLeaderboard();$('startActivityButton').addEventListener('click',startActivity);$('startStudentName').addEventListener('keydown',e=>{if(e.key==='Enter')startActivity()});$('checkButton').addEventListener('click',checkAnswer);$('skipButton').addEventListener('click',skipQuestion);$('hintButton').addEventListener('click',showHint);$('resetButton').addEventListener('click',resetGame);$('useVerbButton').addEventListener('click',useCustomVerb);$('soundButton').addEventListener('click',toggleSound);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer()});['category','tense','mode'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='category'){customVerb=null;$('mode').value='random'}newQuestion()}));newQuestion()}
+function init(){try{initFirebase(); if(answerFor('suivre','participes','je')!=='suivant / suivi')throw new Error('suivre test failed'); if(answerFor('se souvenir','futur','je')!=='me souviendrai')throw new Error('se souvenir je future test failed: '+answerFor('se souvenir','futur','je')); if(answerFor('se souvenir','futur','nous')!=='nous nous souviendrons')throw new Error('se souvenir nous future test failed: '+answerFor('se souvenir','futur','nous')); $('verifiedStatusDisplay').textContent='VERSION 2026-06-05 FIREBASE-ONLY TIMER FIX LOADED: visible timer always starts at 00:00; best streak history reads/writes Firebase only, not Chrome/Safari storage.';}catch(e){$('verifiedStatusDisplay').textContent='App message: '+e.message} updateSoundButton();updateScore();updateVerbPool();renderOnlineLeaderboard();$('startActivityButton').addEventListener('click',startActivity);$('startStudentName').addEventListener('keydown',e=>{if(e.key==='Enter')startActivity()});$('checkButton').addEventListener('click',checkAnswer);$('skipButton').addEventListener('click',skipQuestion);$('hintButton').addEventListener('click',showHint);$('resetButton').addEventListener('click',resetGame);$('useVerbButton').addEventListener('click',useCustomVerb);$('soundButton').addEventListener('click',toggleSound);$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer()});['category','tense','mode'].forEach(id=>$(id).addEventListener('change',()=>{if(id==='category'){customVerb=null;$('mode').value='random'}newQuestion()}));newQuestion()}
 document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
