@@ -325,7 +325,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px">
 <h2>🏅 Live leaderboard</h2>
 <p class="tip">Top 20 ranked by performance: score, accuracy, streak and time.</p>
-<div id="leaderboardContainer"></div>
+<div id="leaderboardContainer"><p class="leaderboard-empty">Leaderboard loading...</p></div>
 <div id="leaderboardStatus" class="leaderboard-status">Connecting to leaderboard...</div>
 </section>
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
@@ -1857,9 +1857,21 @@ const firebaseConfig = {
   appId: "1:523353401477:web:32de87461dae887ecb61ec"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const leaderboardRef = db.ref("leaderboard");
+let db = null;
+let leaderboardRef = null;
+let firebaseOnline = false;
+
+try {
+  if(typeof firebase !== "undefined"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    leaderboardRef = db.ref("leaderboard");
+    firebaseOnline = true;
+  }
+} catch(firebaseInitError) {
+  firebaseOnline = false;
+  console.warn("Firebase could not start. Local leaderboard will be used.", firebaseInitError);
+}
 
 function cleanStudentKey(name){
   return name.trim().toLowerCase().replace(/[^a-z0-9À-ÿ_-]+/gi, "_").slice(0, 60) || "unnamed_student";
@@ -1875,6 +1887,9 @@ function getStudentName(){
 let playStartTime = null;
 let playTimerInterval = null;
 let currentPlaySeconds = 0;
+let previousPlaySeconds = 0;
+let previousBestStreak = 0;
+let sessionBestStreak = 0;
 
 function formatTime(totalSeconds){
   const minutes = Math.floor(totalSeconds / 60);
@@ -1883,14 +1898,9 @@ function formatTime(totalSeconds){
 }
 
 function startPlayTimer(){
-  const display = document.getElementById("playTimerDisplay");
   playStartTime = Date.now();
   currentPlaySeconds = 0;
-
-  if(display){
-    display.textContent = "Time played: 00:00";
-    display.classList.remove("hidden");
-  }
+  updateTimerDisplay();
 
   if(playTimerInterval){
     clearInterval(playTimerInterval);
@@ -1898,14 +1908,53 @@ function startPlayTimer(){
 
   playTimerInterval = setInterval(function(){
     currentPlaySeconds = Math.floor((Date.now() - playStartTime) / 1000);
-    if(display){
-      display.textContent = "Time played: " + formatTime(currentPlaySeconds);
-    }
+    updateTimerDisplay();
   }, 1000);
 }
 
 function getCurrentPlayTimeText(){
   return formatTime(currentPlaySeconds || 0);
+}
+
+function safeNumber(value){
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function getStoredPlaySeconds(entry){
+  if(!entry) return 0;
+  return Math.max(
+    safeNumber(entry.totalPlaySeconds),
+    safeNumber(entry.playSeconds),
+    safeNumber(entry.bestStreakSeconds)
+  );
+}
+
+function getTotalPlaySeconds(){
+  return (previousPlaySeconds || 0) + (currentPlaySeconds || 0);
+}
+
+function getTotalPlayTimeText(){
+  return formatTime(getTotalPlaySeconds());
+}
+
+function updateTimerDisplay(){
+  const display = document.getElementById("playTimerDisplay");
+  if(!display) return;
+  display.textContent = "Time played: " + getTotalPlayTimeText() + " total  |  This session: " + getCurrentPlayTimeText();
+  display.classList.remove("hidden");
+}
+
+function mergeStudentHistory(entry){
+  if(!entry) return;
+  previousPlaySeconds = Math.max(previousPlaySeconds || 0, getStoredPlaySeconds(entry));
+  previousBestStreak = Math.max(previousBestStreak || 0, safeNumber(entry.bestStreak), safeNumber(entry.streak));
+  sessionBestStreak = Math.max(sessionBestStreak || 0, streak || 0);
+  updateTimerDisplay();
+}
+
+function getBestStreakNow(){
+  return Math.max(previousBestStreak || 0, sessionBestStreak || 0, streak || 0);
 }
 
 
@@ -1925,6 +1974,9 @@ function startActivity(){
   // Start the activity immediately. Firebase checks run in the background.
   if(mainInput) mainInput.value = name;
   localStorage.setItem("conjugaisonBattleCurrentStudent", name);
+  previousPlaySeconds = 0;
+  previousBestStreak = 0;
+  sessionBestStreak = 0;
 
   const display = document.getElementById("currentStudentDisplay");
   if(display){
@@ -2000,17 +2052,38 @@ function loadPersonalBestStreak(name){
   const display = document.getElementById("personalBestStreakDisplay");
   if(!display || !name) return;
 
+  // Show something immediately.
+  display.textContent = "Your best streak so far: 0 🔥  |  Time played: 00:00";
+  display.classList.remove("hidden");
+
+  const localBoard = getLocalLeaderboard ? getLocalLeaderboard() : [];
+  const localEntry = localBoard.find(function(entry){
+    return cleanStudentKey(entry.name || "") === cleanStudentKey(name);
+  });
+
+  if(localEntry){
+    mergeStudentHistory(localEntry);
+    const localBest = getBestStreakNow();
+    const localTime = formatTime(previousPlaySeconds || 0);
+    display.textContent = "Your best streak so far: " + localBest + " 🔥  |  Previous time played: " + localTime;
+  }
+
+  if(!leaderboardRef){
+    return;
+  }
+
   const key = cleanStudentKey(name);
   leaderboardRef.child(key).once("value").then(function(snapshot){
     const data = snapshot.val();
-    const bestStreak = data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0);
+    if(data) mergeStudentHistory(data);
+    const bestStreak = getBestStreakNow();
+    const bestTime = formatTime(previousPlaySeconds || 0);
 
-    const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00" ? data.bestStreakTime : getCurrentPlayTimeText();
-    display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime;
+    display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Previous time played: " + bestTime;
     display.classList.remove("hidden");
+    updateTimerDisplay();
   }).catch(function(){
-    display.textContent = "Your best streak so far: 0 🔥";
-    display.classList.remove("hidden");
+    // Keep local display if Firebase is unavailable.
   });
 }
 
@@ -2018,42 +2091,41 @@ function updatePersonalBestStreak(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
 
+  sessionBestStreak = Math.max(sessionBestStreak || 0, streak || 0);
+  const display = document.getElementById("personalBestStreakDisplay");
+
+  if(display){
+    display.textContent = "Your best streak so far: " + getBestStreakNow() + " 🔥  |  Total time played: " + getTotalPlayTimeText();
+    display.classList.remove("hidden");
+  }
+
+  if(!leaderboardRef){
+    return;
+  }
+
   const key = cleanStudentKey(name);
   const studentRef = leaderboardRef.child(key);
 
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val() || {};
-    const oldBest = old.bestStreak || old.streak || 0;
-    const oldBestTimeMissing = !old.bestStreakTime || old.bestStreakTime === "00:00";
+    const bestNow = Math.max(getBestStreakNow(), old.bestStreak || old.streak || 0);
+    studentRef.update({
+      bestStreak: bestNow,
+      totalPlaySeconds: getTotalPlaySeconds(),
+      totalPlayTime: getTotalPlayTimeText(),
+      playSeconds: getTotalPlaySeconds(),
+      playTime: getTotalPlayTimeText(),
+      bestStreakSeconds: old.bestStreakSeconds || currentPlaySeconds || 0,
+      bestStreakTime: old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText(),
+      updatedAt: Date.now()
+    });
 
-    if(streak > oldBest){
-      studentRef.update({
-        bestStreak: streak,
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      });
-
-      const display = document.getElementById("personalBestStreakDisplay");
-      if(display){
-        display.textContent = "New personal best streak: " + streak + " 🔥  |  Time played: " + getCurrentPlayTimeText();
-        display.classList.remove("hidden");
-      }
-      return;
-    }
-
-    if(oldBestTimeMissing && oldBest > 0 && currentPlaySeconds > 0){
-      studentRef.update({
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      });
-    }
-
-    const display = document.getElementById("personalBestStreakDisplay");
     if(display){
-      const shownTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
-      display.textContent = "Your best streak so far: " + oldBest + " 🔥  |  Time played: " + shownTime;
+      display.textContent = "Your best streak so far: " + bestNow + " 🔥  |  Total time played: " + getTotalPlayTimeText();
       display.classList.remove("hidden");
     }
+  }).catch(function(){
+    // Keep local/current display.
   });
 }
 
@@ -2070,20 +2142,34 @@ function updateOnlineLeaderboard(){
     attempts: attempts,
     accuracy: accuracy,
     streak: streak,
-    bestStreak: streak,
-    playSeconds: currentPlaySeconds || 0,
-    playTime: getCurrentPlayTimeText(),
+    bestStreak: getBestStreakNow(),
+    playSeconds: getTotalPlaySeconds(),
+    playTime: getTotalPlayTimeText(),
+    totalPlaySeconds: getTotalPlaySeconds(),
+    totalPlayTime: getTotalPlayTimeText(),
     bestStreakSeconds: currentPlaySeconds || 0,
     bestStreakTime: getCurrentPlayTimeText(),
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
+    performancePoints: calculatePerformancePoints(score, attempts, accuracy, getBestStreakNow(), getTotalPlaySeconds()),
     updatedAt: Date.now()
   };
 
   const key = cleanStudentKey(name);
+  if(!leaderboardRef){
+    renderLeaderboardBoard(getLocalLeaderboard(), "Showing local leaderboard. Online leaderboard is not connected.");
+    return;
+  }
+
   const studentRef = leaderboardRef.child(key);
 
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val();
+    if(old){
+      current.bestStreak = Math.max(current.bestStreak || 0, old.bestStreak || old.streak || 0);
+      current.totalPlaySeconds = getTotalPlaySeconds();
+      current.totalPlayTime = getTotalPlayTimeText();
+      current.playSeconds = getTotalPlaySeconds();
+      current.playTime = getTotalPlayTimeText();
+    }
 
     const better = !old ||
       current.score > old.score ||
@@ -2133,12 +2219,14 @@ function saveLocalLeaderboardEntry(){
     attempts: attempts,
     accuracy: accuracy,
     streak: streak,
-    bestStreak: streak,
-    playSeconds: currentPlaySeconds || 0,
-    playTime: getCurrentPlayTimeText(),
+    bestStreak: getBestStreakNow(),
+    playSeconds: getTotalPlaySeconds(),
+    playTime: getTotalPlayTimeText(),
+    totalPlaySeconds: getTotalPlaySeconds(),
+    totalPlayTime: getTotalPlayTimeText(),
     bestStreakSeconds: currentPlaySeconds || 0,
     bestStreakTime: getCurrentPlayTimeText(),
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
+    performancePoints: calculatePerformancePoints(score, attempts, accuracy, getBestStreakNow(), getTotalPlaySeconds()),
     updatedAt: Date.now()
   };
 
@@ -2150,10 +2238,13 @@ function saveLocalLeaderboardEntry(){
 
   if(existingIndex >= 0){
     const old = board[existingIndex];
-    const better = (entry.performancePoints || 0) > (old.performancePoints || 0);
-    if(better){
-      board[existingIndex] = entry;
-    }
+    entry.bestStreak = Math.max(entry.bestStreak || 0, old.bestStreak || old.streak || 0);
+    entry.totalPlaySeconds = getTotalPlaySeconds();
+    entry.totalPlayTime = getTotalPlayTimeText();
+    entry.playSeconds = getTotalPlaySeconds();
+    entry.playTime = getTotalPlayTimeText();
+    entry.performancePoints = Math.max(entry.performancePoints || 0, old.performancePoints || 0, calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || 0, entry.totalPlaySeconds || 0));
+    board[existingIndex] = Object.assign({}, old, entry);
   } else {
     board.push(entry);
   }
@@ -2181,8 +2272,8 @@ function renderLeaderboardBoard(board, sourceLabel){
     '<thead><tr><th>#</th><th>Name</th><th>Score</th><th>Accuracy</th><th>Streak</th><th>Time</th><th>Performance</th></tr></thead>' +
     '<tbody>' +
     board.map(function(entry, index){
-      const perf = entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0);
-      const time = (entry.bestStreakTime && entry.bestStreakTime !== "00:00") ? entry.bestStreakTime : ((entry.playTime && entry.playTime !== "00:00") ? entry.playTime : "00:00");
+      const perf = entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.totalPlaySeconds || entry.playSeconds || entry.bestStreakSeconds || 0);
+      const time = entry.totalPlayTime || ((entry.playTime && entry.playTime !== "00:00") ? entry.playTime : ((entry.bestStreakTime && entry.bestStreakTime !== "00:00") ? entry.bestStreakTime : "00:00"));
       return '<tr>' +
         '<td class="rank">' + (index + 1) + '</td>' +
         '<td>' + (entry.name || "Unnamed") + '</td>' +
@@ -2201,14 +2292,14 @@ function renderLeaderboardBoard(board, sourceLabel){
 function renderLeaderboardFromData(data){
   const rawBoard = Object.values(data || {});
   const board = rawBoard.sort(function(a, b){
-    const aPoints = a.performancePoints || calculatePerformancePoints(a.score || 0, a.attempts || 0, a.accuracy || 0, a.bestStreak || a.streak || 0, a.playSeconds || a.bestStreakSeconds || 0);
-    const bPoints = b.performancePoints || calculatePerformancePoints(b.score || 0, b.attempts || 0, b.accuracy || 0, b.bestStreak || b.streak || 0, b.playSeconds || b.bestStreakSeconds || 0);
+    const aPoints = a.performancePoints || calculatePerformancePoints(a.score || 0, a.attempts || 0, a.accuracy || 0, a.bestStreak || a.streak || 0, a.totalPlaySeconds || a.playSeconds || a.bestStreakSeconds || 0);
+    const bPoints = b.performancePoints || calculatePerformancePoints(b.score || 0, b.attempts || 0, b.accuracy || 0, b.bestStreak || b.streak || 0, b.totalPlaySeconds || b.playSeconds || b.bestStreakSeconds || 0);
 
     if(bPoints !== aPoints) return bPoints - aPoints;
     if((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
     if((b.accuracy || 0) !== (a.accuracy || 0)) return (b.accuracy || 0) - (a.accuracy || 0);
     if((b.bestStreak || b.streak || 0) !== (a.bestStreak || a.streak || 0)) return (b.bestStreak || b.streak || 0) - (a.bestStreak || a.streak || 0);
-    return (a.playSeconds || a.bestStreakSeconds || 999999) - (b.playSeconds || b.bestStreakSeconds || 999999);
+    return (a.totalPlaySeconds || a.playSeconds || a.bestStreakSeconds || 999999) - (b.totalPlaySeconds || b.playSeconds || b.bestStreakSeconds || 999999);
   }).slice(0, 20);
 
   if(board.length === 0){
@@ -2226,26 +2317,24 @@ function renderLeaderboardFromData(data){
 
 function connectOnlineLeaderboard(){
   const status = document.getElementById("leaderboardStatus");
-  if(status) status.textContent = "Connecting to online leaderboard...";
+  if(status) status.textContent = "Preparing leaderboard...";
+
+  // Always render something immediately.
+  renderLeaderboardBoard(getLocalLeaderboard(), "Showing local leaderboard while online leaderboard connects.");
+
+  if(!leaderboardRef){
+    renderLeaderboardBoard(getLocalLeaderboard(), "Online leaderboard is not connected. Local leaderboard is active.");
+    return;
+  }
 
   try {
     leaderboardRef.on("value", function(snapshot){
       renderLeaderboardFromData(snapshot.val());
     }, function(error){
-      const localBoard = getLocalLeaderboard();
-      renderLeaderboardBoard(localBoard, "Online leaderboard connection failed. Showing local scores. " + error.message);
+      renderLeaderboardBoard(getLocalLeaderboard(), "Online leaderboard connection failed. Showing local scores. " + error.message);
     });
-
-    setTimeout(function(){
-      const container = document.getElementById("leaderboardContainer");
-      if(container && container.innerHTML.trim() === ""){
-        const localBoard = getLocalLeaderboard();
-        renderLeaderboardBoard(localBoard, "Online leaderboard is still loading. Showing local scores for now.");
-      }
-    }, 2500);
   } catch(error) {
-    const localBoard = getLocalLeaderboard();
-    renderLeaderboardBoard(localBoard, "Leaderboard error. Showing local scores. " + error.message);
+    renderLeaderboardBoard(getLocalLeaderboard(), "Leaderboard error. Showing local scores. " + error.message);
   }
 }
 
@@ -3074,6 +3163,54 @@ function makeQuestion(){
  return {verb:v, prompt:p, tense, answer:a, group:groupDisplay(v)};
 }
 
+// Sound controls: saved per browser and respected by every sound effect.
+let soundEnabled = localStorage.getItem("conjugaisonBattleSoundEnabled") !== "false";
+let audioContext = null;
+
+function updateSoundButton(){
+  const button = document.getElementById("soundButton");
+  if(button){
+    button.textContent = soundEnabled ? "🔊 Sound: ON" : "🔇 Sound: OFF";
+  }
+}
+
+function toggleSound(){
+  soundEnabled = !soundEnabled;
+  localStorage.setItem("conjugaisonBattleSoundEnabled", soundEnabled ? "true" : "false");
+  updateSoundButton();
+}
+
+function playTone(frequency, duration, type){
+  if(!soundEnabled) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if(!AudioCtx) return;
+    audioContext = audioContext || new AudioCtx();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = type || "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + duration + 0.03);
+  } catch(e) {
+    // Sound must never stop the game.
+  }
+}
+
+function playCorrectSound(){
+  playTone(660, 0.13, "triangle");
+  setTimeout(function(){ playTone(880, 0.16, "triangle"); }, 90);
+}
+
+function playWrongSound(){
+  playTone(220, 0.22, "sawtooth");
+}
+
 function newQuestion(){ currentQuestion=makeQuestion();
  questionLocked = false; document.getElementById("verb").textContent=currentQuestion.verb; document.getElementById("meaning").textContent=getMeaning(currentQuestion.verb); document.getElementById("pronoun").textContent =
 (currentQuestion.prompt==="form") ? "Forme verbale" : currentQuestion.prompt; document.getElementById("tenseDisplay").textContent=tenseLabels[currentQuestion.tense]; document.getElementById("groupDisplay").textContent=currentQuestion.group; document.getElementById("answer").value=""; document.getElementById("feedback").innerHTML=""; document.getElementById("feedback").className=""; document.getElementById("answer").focus(); updateVerbPool();}
@@ -3106,6 +3243,7 @@ function checkAnswer(){
   if(normalise(input)===normalise(currentQuestion.answer)){
     questionLocked = true;
     streak++;
+    sessionBestStreak = Math.max(sessionBestStreak || 0, streak);
     score++;
     playCorrectSound();
 
@@ -3143,6 +3281,7 @@ function updateVerbPool(){document.getElementById("verbPool").innerHTML=selected
 document.getElementById("answer").addEventListener("keydown",e=>{if(e.key==="Enter")checkAnswer();});
 newQuestion();
 prepareStartScreen();
+updateSoundButton();
 connectOnlineLeaderboard();
 </script>
 
