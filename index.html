@@ -335,6 +335,17 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
+
+<script>
+/* Emergency global helpers: loaded before the app so buttons never fail because a helper is missing. */
+window.normaliseBase = function(text){
+  return String(text || '').trim().toLowerCase().replace(/[’`´]/g,"'").replace(/\s+/g,' ');
+};
+window.safeNumber = window.safeNumber || function(value, fallback){
+  var n = Number(value);
+  return Number.isFinite(n) ? n : (fallback || 0);
+};
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
@@ -2022,7 +2033,7 @@ function loadPersonalBestStreak(name){
   });
 
   if(localEntry){
-    const localBest = localEntry.bestStreak || localEntry.streak || 0;
+    const localBest = safeInt(localEntry.bestStreak ?? localEntry.streak, 0);
     const localTime = (localEntry.bestStreakTime && localEntry.bestStreakTime !== "00:00") ? localEntry.bestStreakTime : (localEntry.playTime || "00:00");
     display.textContent = "Your best streak so far: " + localBest + " 🔥  |  Time played: " + localTime;
   }
@@ -2034,7 +2045,7 @@ function loadPersonalBestStreak(name){
   const key = cleanStudentKey(name);
   leaderboardRef.child(key).once("value").then(function(snapshot){
     const data = snapshot.val();
-    const bestStreak = data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0);
+    const bestStreak = safeInt(data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0), 0);
     const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00" ? data.bestStreakTime : (data && data.playTime ? data.playTime : "00:00");
 
     display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime;
@@ -2051,7 +2062,7 @@ function updatePersonalBestStreak(){
   const display = document.getElementById("personalBestStreakDisplay");
 
   if(display){
-    display.textContent = "Your best streak so far: " + Math.max(streak, 0) + " 🔥  |  Time played: " + getCurrentPlayTimeText();
+    display.textContent = "Your best streak so far: " + Math.max(safeInt(streak,0), 0) + " 🔥  |  Time played: " + getCurrentPlayTimeText();
     display.classList.remove("hidden");
   }
 
@@ -2064,12 +2075,12 @@ function updatePersonalBestStreak(){
 
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val() || {};
-    const oldBest = old.bestStreak || old.streak || 0;
+    const oldBest = safeInt(old.bestStreak ?? old.streak, 0);
     const oldBestTimeMissing = !old.bestStreakTime || old.bestStreakTime === "00:00";
 
     if(streak > oldBest){
       studentRef.update({
-        bestStreak: streak,
+        bestStreak: safeInt(streak,0),
         bestStreakSeconds: currentPlaySeconds || 0,
         bestStreakTime: getCurrentPlayTimeText()
       });
@@ -2107,11 +2118,11 @@ function updateOnlineLeaderboard(){
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
   const current = {
     name: name,
-    score: score,
-    attempts: attempts,
+    score: safeInt(score,0),
+    attempts: safeInt(attempts,0),
     accuracy: accuracy,
-    streak: streak,
-    bestStreak: streak,
+    streak: safeInt(streak,0),
+    bestStreak: safeInt(streak,0),
     playSeconds: currentPlaySeconds || 0,
     playTime: getCurrentPlayTimeText(),
     bestStreakSeconds: currentPlaySeconds || 0,
@@ -2148,7 +2159,7 @@ function updateOnlineLeaderboard(){
       studentRef.set(current);
     } else if(old && streak > (old.bestStreak || old.streak || 0)){
       studentRef.update({
-        bestStreak: streak,
+        bestStreak: safeInt(streak,0),
         bestStreakSeconds: currentPlaySeconds || 0,
         bestStreakTime: getCurrentPlayTimeText()
       });
@@ -2175,11 +2186,11 @@ function saveLocalLeaderboardEntry(){
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
   const entry = {
     name: name,
-    score: score,
-    attempts: attempts,
+    score: safeInt(score,0),
+    attempts: safeInt(attempts,0),
     accuracy: accuracy,
-    streak: streak,
-    bestStreak: streak,
+    streak: safeInt(streak,0),
+    bestStreak: safeInt(streak,0),
     playSeconds: currentPlaySeconds || 0,
     playTime: getCurrentPlayTimeText(),
     bestStreakSeconds: currentPlaySeconds || 0,
@@ -2296,24 +2307,25 @@ function connectOnlineLeaderboard(){
 
 
 /* === Safety and classroom patch: missing globals, sound toggle, saved history === */
-let score = 0;
-let attempts = 0;
-let streak = 0;
-let currentQuestion = null;
-let customVerb = null;
-let questionLocked = false;
-let personalBestStreakValue = 0;
-let savedPlaySecondsBeforeSession = 0;
-let soundEnabled = localStorage.getItem("conjugaisonBattleSound") !== "off";
+var score = 0;
+var attempts = 0;
+var streak = 0;
+var currentQuestion = null;
+var customVerb = null;
+var questionLocked = false;
+var personalBestStreakValue = 0;
+var savedPlaySecondsBeforeSession = 0;
+var soundEnabled = localStorage.getItem("conjugaisonBattleSound") !== "off";
 const correctEmojis = ["🎉", "⭐", "👏", "✅", "🔥", "🌟"];
 const wrongEmojis = ["😢", "😬", "🙈", "💪", "🤔"];
 
 function normalise(text){
-  return String(text || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[’`´]/g,"'")
-    .replace(/\s+/g," ");
+  return window.normaliseBase ? window.normaliseBase(text) : String(text || '').trim().toLowerCase().replace(/[’`´]/g,"'").replace(/\s+/g,' ');
+}
+window.normalise = normalise;
+function safeInt(value, fallback){
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : (fallback || 0);
 }
 
 function randomItem(arr){
@@ -3443,10 +3455,10 @@ saveLocalLeaderboardEntry = function(){
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
   const entry = {
     name: name,
-    score: score,
-    attempts: attempts,
+    score: safeInt(score,0),
+    attempts: safeInt(attempts,0),
     accuracy: accuracy,
-    streak: streak,
+    streak: safeInt(streak,0),
     bestStreak: best,
     playSeconds: total,
     totalPlaySeconds: total,
@@ -3486,10 +3498,10 @@ updateOnlineLeaderboard = function(){
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
   const current = {
     name: name,
-    score: score,
-    attempts: attempts,
+    score: safeInt(score,0),
+    attempts: safeInt(attempts,0),
     accuracy: accuracy,
-    streak: streak,
+    streak: safeInt(streak,0),
     bestStreak: best,
     playSeconds: total,
     totalPlaySeconds: total,
@@ -3521,6 +3533,149 @@ updateOnlineLeaderboard = function(){
 };
 
 /* === End overrides === */
+
+
+/* === Final classroom repair: no NaN, working Check button, safe saved history === */
+(function(){
+  function safeNum(value, fallback){
+    const n = Number(value);
+    return Number.isFinite(n) ? n : (fallback || 0);
+  }
+  window.safeNumber = safeNum;
+  window.normalise = window.normalise || function(text){
+    return String(text || "").trim().toLowerCase().replace(/[’`´]/g,"'").replace(/\s+/g," ");
+  };
+
+  function safeBestFromHistory(hist){
+    hist = hist || {};
+    return Math.max(safeNum(hist.bestStreak,0), safeNum(hist.streak,0), safeNum(personalBestStreakValue,0));
+  }
+
+  loadPersonalBestStreak = function(name){
+    const display = document.getElementById("personalBestStreakDisplay");
+    if(!display || !name) return;
+    const hist = getStudentHistory(name) || {};
+    const localBoard = (typeof getLocalLeaderboard === "function") ? getLocalLeaderboard() : [];
+    const localEntry = localBoard.find(function(entry){ return cleanStudentKey(entry.name || "") === cleanStudentKey(name); }) || {};
+    const best = Math.max(safeBestFromHistory(hist), safeNum(localEntry.bestStreak,0), safeNum(localEntry.streak,0));
+    const seconds = Math.max(safeNum(hist.totalPlaySeconds,0), safeNum(hist.playSeconds,0), safeNum(localEntry.totalPlaySeconds,0), safeNum(localEntry.playSeconds,0));
+    personalBestStreakValue = best;
+    savedPlaySecondsBeforeSession = seconds;
+    display.textContent = "Your best streak so far: " + best + " 🔥  |  Time played: " + formatTime(seconds);
+    display.classList.remove("hidden");
+
+    if(leaderboardRef){
+      leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){
+        const data = snapshot.val() || {};
+        const remoteBest = Math.max(safeNum(data.bestStreak,0), safeNum(data.streak,0));
+        const remoteSeconds = Math.max(safeNum(data.totalPlaySeconds,0), safeNum(data.playSeconds,0), safeNum(data.bestStreakSeconds,0));
+        personalBestStreakValue = Math.max(personalBestStreakValue, remoteBest);
+        savedPlaySecondsBeforeSession = Math.max(savedPlaySecondsBeforeSession, remoteSeconds);
+        display.textContent = "Your best streak so far: " + personalBestStreakValue + " 🔥  |  Time played: " + formatTime(savedPlaySecondsBeforeSession);
+      }).catch(function(){});
+    }
+  };
+
+  updatePersonalBestStreak = function(){
+    const name = getStudentName();
+    if(name === "Unnamed student") return;
+    const display = document.getElementById("personalBestStreakDisplay");
+    const hist = getStudentHistory(name) || {};
+    const best = Math.max(safeBestFromHistory(hist), safeNum(streak,0));
+    personalBestStreakValue = best;
+    const total = Math.max(getTotalPlaySeconds(), safeNum(hist.totalPlaySeconds,0), safeNum(hist.playSeconds,0));
+    hist.bestStreak = best;
+    hist.streak = Math.max(safeNum(hist.streak,0), safeNum(streak,0));
+    hist.totalPlaySeconds = total;
+    hist.playSeconds = total;
+    hist.playTime = formatTime(total);
+    saveStudentHistory(name, hist);
+    if(display){
+      display.textContent = "Your best streak so far: " + best + " 🔥  |  Time played: " + formatTime(total);
+      display.classList.remove("hidden");
+    }
+  };
+
+  const oldStartPlayTimer = startPlayTimer;
+  startPlayTimer = function(){
+    const name = getStudentName();
+    const hist = getStudentHistory(name) || {};
+    savedPlaySecondsBeforeSession = Math.max(safeNum(hist.totalPlaySeconds,0), safeNum(hist.playSeconds,0));
+    playStartTime = Date.now();
+    currentPlaySeconds = 0;
+    const display = document.getElementById("playTimerDisplay");
+    if(display){
+      display.textContent = "Time played: " + formatTime(savedPlaySecondsBeforeSession);
+      display.classList.remove("hidden");
+    }
+    if(playTimerInterval) clearInterval(playTimerInterval);
+    playTimerInterval = setInterval(function(){
+      currentPlaySeconds = Math.floor((Date.now() - playStartTime) / 1000);
+      const total = getTotalPlaySeconds();
+      if(display) display.textContent = "Time played: " + formatTime(total);
+      const currentName = getStudentName();
+      if(currentName !== "Unnamed student"){
+        const old = getStudentHistory(currentName) || {};
+        old.totalPlaySeconds = total;
+        old.playSeconds = total;
+        old.playTime = formatTime(total);
+        old.bestStreak = Math.max(safeNum(old.bestStreak,0), safeNum(streak,0), safeNum(personalBestStreakValue,0));
+        saveStudentHistory(currentName, old);
+      }
+    }, 1000);
+  };
+
+  checkAnswer = window.checkAnswer = function(){
+    if(questionLocked) return;
+    if(!currentQuestion) newQuestion();
+    const answerEl = document.getElementById("answer");
+    const input = answerEl ? answerEl.value : "";
+    if(!input.trim()) return;
+
+    if(currentQuestion.answer === "This form is not available from the verified conjugation database"){
+      msg("This form is not available from the verified conjugation database. The app will choose another question.", "wrong");
+      questionLocked = true;
+      if(answerEl) answerEl.value = "";
+      setTimeout(newQuestion, 600);
+      return;
+    }
+
+    attempts = safeNum(attempts,0) + 1;
+    const isCorrect = window.normalise(input) === window.normalise(currentQuestion.answer);
+    questionLocked = true;
+
+    if(isCorrect){
+      streak = safeNum(streak,0) + 1;
+      score = safeNum(score,0) + 1;
+      playCorrectSound();
+      if(isIrregularVerbForPhoto(currentQuestion.verb)) showFunnyAnimalPop();
+      floodCorrectEmojis();
+      msg(randomItem(correctEmojis) + " " + randomItem(praise) + " " + randomItem(correctEmojis) + " Correct: " + currentQuestion.answer, "correct");
+    } else {
+      streak = 0;
+      playWrongSound();
+      floodWrongEmojis();
+      msg(randomItem(wrongEmojis) + " " + randomItem(tryAgain) + " " + randomItem(wrongEmojis) + " Correct answer: " + currentQuestion.answer, "wrong");
+    }
+
+    if(answerEl) answerEl.value = "";
+    updateScore();
+    updatePersonalBestStreak();
+    try { updateOnlineLeaderboard(); } catch(e) {}
+    try { renderLeaderboardBoard(getLocalLeaderboard(), "Score saved locally; online leaderboard will sync if connected."); } catch(e) {}
+    setTimeout(newQuestion, isCorrect ? 650 : 850);
+  };
+
+  const oldUpdateScore = updateScore;
+  updateScore = function(){
+    score = safeNum(score,0); attempts = safeNum(attempts,0); streak = safeNum(streak,0);
+    document.getElementById("score").textContent = score;
+    document.getElementById("attempts").textContent = attempts;
+    document.getElementById("streak").textContent = streak;
+    document.getElementById("accuracy").textContent = attempts === 0 ? 0 : Math.round(score / attempts * 100);
+  };
+})();
+/* === End final classroom repair === */
 
 ["category","tense","mode"].forEach(id=>document.getElementById(id).addEventListener("change",()=>{if(id==="category"){customVerb=null;document.getElementById("mode").value="random";}newQuestion();}));
 document.getElementById("answer").addEventListener("keydown",e=>{if(e.key==="Enter")checkAnswer();});
