@@ -314,7 +314,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <div class="feedback info">Verified-only version: all verb pools and features are kept. The app uses Lefff/french-verbs conjugation data and skips unsupported forms instead of guessing. Reflexive compound forms use être and accept the standard masculine singular past participle form.</div>
 <div class="question-box">
 <p>Conjugate this verb:</p><h2 id="verb">parler</h2>
-<div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">verb</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div>
+<div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">English meaning will appear here</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div>
 <label for="answer">Your answer</label><input id="answer" class="answer-input" type="text" placeholder="Type the answer here" autocomplete="off">
 <div class="row"><button onclick="checkAnswer()">Check</button><button class="secondary" onclick="newQuestion()">Skip</button><button class="secondary" onclick="showHint()">Hint</button></div>
 <div id="feedback"></div>
@@ -2412,45 +2412,82 @@ function randomItem(arr){
 function normalise(t){return String(t || "").trim().toLowerCase().normalize("NFC").replace(/\s+/g," ").replace(/[’‘`´]/g,"'");}
 
 function getMeaning(v){
-  const original = String(v || "").trim();
-  const base = original
+  let original = "";
+  if(v && typeof v === "object"){
+    original = String(v.inf || v.verb || v.name || "");
+  } else {
+    original = String(v || "");
+  }
+
+  original = original.trim();
+  if(!original) return "English meaning unavailable";
+
+  const normalApostrophe = original.replace(/[’‘`´]/g, "'");
+  const curlyApostrophe = original.replace(/['‘`´]/g, "’");
+
+  const base = normalApostrophe
     .replace(/^se\s+/i, "")
-    .replace(/^s[’']/, "")
-    .replace(/[’]/g, "'")
-    .toLowerCase();
+    .replace(/^s'/i, "")
+    .toLowerCase()
+    .trim();
 
   const candidates = Array.from(new Set([
     original,
     original.toLowerCase(),
-    original.replace(/'/g, "’"),
-    original.replace(/’/g, "'"),
+    normalApostrophe,
+    normalApostrophe.toLowerCase(),
+    curlyApostrophe,
+    curlyApostrophe.toLowerCase(),
     base,
     base.replace(/'/g, "’"),
     base.replace(/’/g, "'")
-  ]));
+  ])).filter(Boolean);
 
   for(const item of candidates){
     if(typeof finalEnglishMeanings !== "undefined" && finalEnglishMeanings[item]) return finalEnglishMeanings[item];
     if(typeof englishMeanings !== "undefined" && englishMeanings[item]) return englishMeanings[item];
+    if(typeof extraEnglishMeanings !== "undefined" && extraEnglishMeanings[item]) return extraEnglishMeanings[item];
   }
 
-  if(original.startsWith("se ")){
+  if(normalApostrophe.startsWith("se ") || normalApostrophe.startsWith("s'")){
     const inner = getMeaning(base);
-    if(inner && inner !== "French verb") return "to " + inner.replace(/^to\s+/, "") + " oneself";
-    return "to do this to oneself / each other";
-  }
-  if(original.startsWith("s’") || original.startsWith("s'")){
-    const inner = getMeaning(base);
-    if(inner && inner !== "French verb") return "to " + inner.replace(/^to\s+/, "") + " oneself";
-    return "to do this to oneself / each other";
+    if(inner && !/French verb|French Verb|meaning unavailable|meaning available/i.test(inner)){
+      return "to " + inner.replace(/^to\s+/i, "") + " oneself";
+    }
+    return "reflexive verb";
   }
 
-  if(base.endsWith("er")) return "to " + base.slice(0, -2) + " (regular ER verb)";
-  if(base.endsWith("ir")) return "to " + base.slice(0, -2) + " (IR verb)";
-  if(base.endsWith("re")) return "to " + base.slice(0, -2) + " (RE verb)";
-  if(base.endsWith("oir")) return "to " + base.slice(0, -3) + " (OIR verb)";
-  return "meaning available during practice";
+  // Last-resort classroom-safe fallback. This avoids displaying the old generic "French Verb" message.
+  if(base.endsWith("er")) return "to " + base.slice(0, -2);
+  if(base.endsWith("ir")) return "to " + base.slice(0, -2);
+  if(base.endsWith("re")) return "to " + base.slice(0, -2);
+  if(base.endsWith("oir")) return "to " + base.slice(0, -3);
+
+  return "English meaning unavailable";
 }
+
+function refreshMeaningDisplay(){
+  const meaningElement = document.getElementById("meaning");
+  if(!meaningElement) return;
+
+  let verbValue = "";
+  try {
+    verbValue = currentQuestion && currentQuestion.verb ? currentQuestion.verb : "";
+  } catch(e) {
+    verbValue = "";
+  }
+
+  if(!verbValue){
+    const verbElement = document.getElementById("verb");
+    verbValue = verbElement ? verbElement.textContent : "";
+  }
+
+  const meaning = getMeaning(verbValue);
+  meaningElement.textContent = meaning && !/French verb|French Verb|^verb$/i.test(meaning)
+    ? meaning
+    : "English meaning unavailable";
+}
+
 function groupOf(v){ if(v.startsWith("se ") || v.startsWith("s’") || v.startsWith("s\'")) return "reflexive"; if(v==="être"||v==="avoir"||pools.irregular.includes(v)) return "irregular"; if(v.endsWith("er"))return"er"; if(v.endsWith("ir"))return"ir"; if(v.endsWith("re"))return"re"; if(v.endsWith("oir"))return"oir"; return"unknown";}
 function ensureNonEmptyPool(pool){
   if(Array.isArray(pool) && pool.length > 0) return pool;
@@ -3300,6 +3337,7 @@ function newQuestion(){
     const feedback = document.getElementById("feedback");
     if(verb) verb.textContent = currentQuestion.verb;
     if(meaning) meaning.textContent = getMeaning(currentQuestion.verb);
+    refreshMeaningDisplay();
     if(pronoun) pronoun.textContent = (currentQuestion.prompt === "form") ? "Forme verbale" : currentQuestion.prompt;
     if(tenseDisplay) tenseDisplay.textContent = tenseLabels[currentQuestion.tense] || currentQuestion.tense;
     if(group) group.textContent = currentQuestion.group;
@@ -3368,8 +3406,7 @@ function checkAnswer(){
     updateScore();
     updateOnlineLeaderboard();
     updatePersonalBestStreak();
-    // Do not automatically move to the next verb after a wrong answer.
-    // The student should have time to read the correction. They can press Skip.
+    // Stays on this verb after a mistake. Student must press Skip to move on.
   }
 }
 
@@ -3399,6 +3436,16 @@ document.getElementById("answer").addEventListener("keydown",e=>{if(e.key==="Ent
 newQuestion();
 prepareStartScreen();
 connectOnlineLeaderboard();
+
+setInterval(function(){
+  try {
+    const screen = document.getElementById("startScreen");
+    if(screen && screen.classList && screen.classList.contains("hidden")){
+      refreshMeaningDisplay();
+    }
+  } catch(e) {}
+}, 1200);
+
 </script>
 
 <script type="module">
