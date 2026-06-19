@@ -335,36 +335,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js">
-
-document.addEventListener("DOMContentLoaded", function(){
-  const possibleStartButtons = Array.from(document.querySelectorAll("button, input[type='button'], input[type='submit']"));
-  possibleStartButtons.forEach(function(btn){
-    const text = (btn.textContent || btn.value || "").toLowerCase();
-    if(text.includes("start")){
-      btn.addEventListener("click", function(){
-        setTimeout(function(){
-          const gameArea = document.getElementById("gameArea") || document.getElementById("game") || document.getElementById("playArea");
-          const startArea = document.getElementById("startArea") || document.getElementById("startScreen") || document.getElementById("nameScreen");
-          // If the original click did nothing and a startActivity function exists, call it.
-          try {
-            if(typeof startActivity === "function"){
-              startActivity();
-            } else if(typeof startGame === "function"){
-              startGame();
-            } else if(typeof beginGame === "function"){
-              beginGame();
-            }
-          } catch(error) {
-            console.warn("Start button recovery attempted:", error);
-          }
-        }, 50);
-      });
-    }
-  });
-});
-
-</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
 <script>
@@ -1888,18 +1859,14 @@ const firebaseConfig = {
 
 let db = null;
 let leaderboardRef = null;
-let firebaseOnline = false;
-
 try {
-  if(typeof firebase !== "undefined"){
+  if (typeof firebase !== "undefined") {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     leaderboardRef = db.ref("leaderboard");
-    firebaseOnline = true;
   }
-} catch(firebaseInitError) {
-  firebaseOnline = false;
-  console.warn("Firebase could not start. Local leaderboard will be used.", firebaseInitError);
+} catch (firebaseError) {
+  console.warn("Firebase SDK could not start. REST/local fallback will be used.", firebaseError);
 }
 
 function cleanStudentKey(name){
@@ -1950,75 +1917,131 @@ function getCurrentPlayTimeText(){
 }
 
 
+
+const firebaseRestBase = "https://conjugaison-battle-default-rtdb.asia-southeast1.firebasedatabase.app";
+function firebaseRestUrl(path){ return firebaseRestBase + "/" + path + ".json"; }
+function withTimeout(promise, milliseconds){
+  return new Promise(function(resolve, reject){
+    const timer = setTimeout(function(){ reject(new Error("connection timed out")); }, milliseconds);
+    promise.then(function(value){ clearTimeout(timer); resolve(value); }).catch(function(error){ clearTimeout(timer); reject(error); });
+  });
+}
+function fetchLeaderboardRest(){
+  if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
+  return withTimeout(fetch(firebaseRestUrl("leaderboard"), {cache:"no-store"}).then(function(response){
+    if(!response.ok) throw new Error("REST leaderboard failed");
+    return response.json();
+  }), 3000);
+}
+function fetchStudentRecordRest(name){
+  if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
+  return withTimeout(fetch(firebaseRestUrl("leaderboard/" + cleanStudentKey(name)), {cache:"no-store"}).then(function(response){
+    if(!response.ok) throw new Error("REST student record failed");
+    return response.json();
+  }), 3000);
+}
+function saveStudentRecordRest(name, data){
+  if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
+  return withTimeout(fetch(firebaseRestUrl("leaderboard/" + cleanStudentKey(name)), {
+    method:"PATCH",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(data)
+  }), 3000);
+}
+function getLocalLeaderboard(){
+  try { return JSON.parse(localStorage.getItem("conjugaisonBattleLocalLeaderboard") || "[]"); }
+  catch(e){ return []; }
+}
+function calculatePerformancePoints(score, attempts, accuracy, bestStreak, playSeconds){
+  score = Number(score || 0);
+  attempts = Number(attempts || 0);
+  accuracy = Number(accuracy || 0);
+  bestStreak = Number(bestStreak || 0);
+  playSeconds = Number(playSeconds || 0);
+  const timePenalty = playSeconds > 0 ? Math.min(50, Math.floor(playSeconds / 60)) : 0;
+  return Math.max(0, Math.round((score * 10) + (accuracy * 2) + (bestStreak * 5) - timePenalty));
+}
+
+function renderLeaderboardBoard(board, sourceLabel){
+  const container = document.getElementById("leaderboardContainer");
+  const status = document.getElementById("leaderboardStatus");
+  if(!container) return;
+  board = Array.isArray(board) ? board : [];
+  if(board.length === 0){
+    container.innerHTML = '<p class="leaderboard-empty">Leaderboard ready. Scores will appear after students answer.</p>';
+    if(status) status.textContent = sourceLabel || "Leaderboard ready.";
+    return;
+  }
+  container.innerHTML = '<table class="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Accuracy</th><th>Streak</th><th>Time</th><th>Performance</th></tr></thead><tbody>' +
+    board.map(function(entry, index){
+      const perf = entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0);
+      const time = (entry.bestStreakTime && entry.bestStreakTime !== "00:00") ? entry.bestStreakTime : ((entry.playTime && entry.playTime !== "00:00") ? entry.playTime : "00:00");
+      return '<tr><td class="rank">' + (index + 1) + '</td><td>' + (entry.name || "Unnamed") + '</td><td>' + (entry.score || 0) + '/' + (entry.attempts || 0) + '</td><td>' + (entry.accuracy || 0) + '%</td><td>' + (entry.bestStreak || entry.streak || 0) + '</td><td>' + time + '</td><td>' + perf + '</td></tr>';
+    }).join("") + '</tbody></table>';
+  if(status) status.textContent = sourceLabel || "Leaderboard loaded.";
+}
+function saveLocalLeaderboardEntry(){
+  const name = getStudentName();
+  if(name === "Unnamed student") return;
+  const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
+  const entry = {
+    name, score, attempts, accuracy, streak,
+    bestStreak: streak,
+    playSeconds: currentPlaySeconds || 0,
+    playTime: getCurrentPlayTimeText(),
+    bestStreakSeconds: currentPlaySeconds || 0,
+    bestStreakTime: getCurrentPlayTimeText(),
+    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
+    updatedAt: Date.now()
+  };
+  const board = getLocalLeaderboard();
+  const key = cleanStudentKey(name);
+  const index = board.findIndex(function(item){ return cleanStudentKey(item.name || "") === key; });
+  if(index >= 0){
+    if((entry.performancePoints || 0) >= (board[index].performancePoints || 0)) board[index] = entry;
+  } else {
+    board.push(entry);
+  }
+  board.sort(function(a,b){ return (b.performancePoints || 0) - (a.performancePoints || 0); });
+  localStorage.setItem("conjugaisonBattleLocalLeaderboard", JSON.stringify(board.slice(0,20)));
+}
+
 function startActivity(){
   const startInput = document.getElementById("startStudentName");
   const mainInput = document.getElementById("studentName");
   const error = document.getElementById("startError");
   const name = startInput ? startInput.value.trim() : "";
-
   if(error) error.textContent = "";
-
-  if(!name){
-    if(error) error.textContent = "Please enter your name first.";
-    return;
-  }
-
-  // Start the activity immediately. Firebase checks run in the background.
+  if(!name){ if(error) error.textContent = "Please enter your name first."; return; }
   if(mainInput) mainInput.value = name;
   localStorage.setItem("conjugaisonBattleCurrentStudent", name);
-
   const display = document.getElementById("currentStudentDisplay");
-  if(display){
-    display.textContent = "Playing as: " + name;
-    display.classList.remove("hidden");
-  }
-
+  if(display){ display.textContent = "Playing as: " + name; display.classList.remove("hidden"); }
   const screen = document.getElementById("startScreen");
   if(screen) screen.classList.add("hidden");
-
   const verifiedStatus = document.getElementById("verifiedStatusDisplay");
-  if(verifiedStatus){
-    verifiedStatus.textContent = window.VerifiedConjugationsReady
-      ? "Verified Lefff conjugation database loaded ✓"
-      : "Verified database still loading. You can start playing while it connects.";
-  }
-
-  if(typeof loadPersonalBestStreak === "function"){
-    loadPersonalBestStreak(name);
-  }
-
-  if(typeof startPlayTimer === "function"){
-    startPlayTimer();
-  }
-
-  if(typeof renderLeaderboard === "function"){
-    renderLeaderboard();
-  }
-
+  if(verifiedStatus){ verifiedStatus.textContent = window.VerifiedConjugationsReady ? "Verified Lefff conjugation database loaded ✓" : "Verified database still loading. You can start playing while it connects."; }
+  loadPersonalBestStreak(name);
+  startPlayTimer();
+  connectOnlineLeaderboard();
+  newQuestion();
   const answer = document.getElementById("answer");
   if(answer) answer.focus();
-
-  // Background unique-name check. It does not freeze the start button.
   try {
-    const key = cleanStudentKey(name);
-    const savedName = localStorage.getItem("conjugaisonBattleCurrentStudent") || "";
-    const savedKey = savedName ? cleanStudentKey(savedName) : "";
-
-    leaderboardRef.child(key).once("value").then(function(snapshot){
-      const nameAlreadyExists = snapshot.exists();
-      const sameSavedStudent = savedKey && savedKey === key;
-
-      if(nameAlreadyExists && !sameSavedStudent){
-        const warning = document.getElementById("verifiedStatusDisplay");
-        if(warning){
-          warning.textContent = "Warning: this name already exists on the leaderboard. Add a surname initial next time.";
+    if(leaderboardRef){
+      const key = cleanStudentKey(name);
+      leaderboardRef.child(key).once("value").then(function(snapshot){
+        const savedName = localStorage.getItem("conjugaisonBattleCurrentStudent") || "";
+        const savedKey = savedName ? cleanStudentKey(savedName) : "";
+        if(snapshot.exists() && savedKey !== key){
+          const warning = document.getElementById("verifiedStatusDisplay");
+          if(warning) warning.textContent = "Warning: this name already exists on the leaderboard. Add a surname initial next time.";
         }
-      }
-    });
-  } catch(e) {
-    // Do nothing. The activity should never fail to start because of Firebase.
-  }
+      }).catch(function(){});
+    }
+  } catch(e) {}
 }
+
 
 function prepareStartScreen(){
   const savedName = localStorage.getItem("conjugaisonBattleCurrentStudent") || "";
@@ -2037,186 +2060,58 @@ function prepareStartScreen(){
 }
 
 
-
-const firebaseRestBase = "https://conjugaison-battle-default-rtdb.asia-southeast1.firebasedatabase.app";
-
-function firebaseRestUrl(path){
-  return firebaseRestBase + "/" + path + ".json";
-}
-
-function withTimeout(promise, milliseconds){
-  return new Promise(function(resolve, reject){
-    const timer = setTimeout(function(){
-      reject(new Error("connection timed out"));
-    }, milliseconds);
-
-    promise.then(function(value){
-      clearTimeout(timer);
-      resolve(value);
-    }).catch(function(error){
-      clearTimeout(timer);
-      reject(error);
-    });
-  });
-}
-
-function fetchLeaderboardRest(){
-  return withTimeout(
-    fetch(firebaseRestUrl("leaderboard"), { cache: "no-store" })
-      .then(function(response){
-        if(!response.ok) throw new Error("REST leaderboard failed");
-        return response.json();
-      }),
-    2500
-  );
-}
-
-function fetchStudentRecordRest(name){
-  const key = cleanStudentKey(name);
-  return fetch(firebaseRestUrl("leaderboard/" + key), { cache: "no-store" })
-    .then(function(response){
-      if(!response.ok) throw new Error("REST student record failed");
-      return response.json();
-    });
-}
-
-function saveStudentRecordRest(name, data){
-  const key = cleanStudentKey(name);
-  return fetch(firebaseRestUrl("leaderboard/" + key), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data)
-  });
-}
-
-function connectLeaderboardRestFallback(){
-  const localBoard = getLocalLeaderboard();
-  renderLeaderboardBoard(localBoard, localBoard.length ? "Showing saved scores while online leaderboard connects." : "Leaderboard ready. Scores will appear after students answer.");
-
-  fetchLeaderboardRest()
-    .then(function(data){
-      renderLeaderboardFromData(data || {});
-    })
-    .catch(function(error){
-      const status = document.getElementById("leaderboardStatus");
-      if(status){
-        status.textContent = localBoard.length
-          ? "Online leaderboard is unavailable at the moment. Showing saved scores on this browser."
-          : "Leaderboard ready. No saved online scores were loaded yet.";
-      }
-    });
-}
-
 function loadPersonalBestStreak(name){
   const display = document.getElementById("personalBestStreakDisplay");
   if(!display || !name) return;
-
-  display.textContent = "Your best streak so far: 0 🔥  |  Time played: 00:00";
-  display.classList.remove("hidden");
-
   function showRecord(data){
     const bestStreak = data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0);
-    const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00"
-      ? data.bestStreakTime
-      : (data && data.playTime && data.playTime !== "00:00" ? data.playTime : "00:00");
-
+    const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00" ? data.bestStreakTime : (data && data.playTime && data.playTime !== "00:00" ? data.playTime : "00:00");
     display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime;
     display.classList.remove("hidden");
   }
-
-  const localBoard = getLocalLeaderboard ? getLocalLeaderboard() : [];
-  const localEntry = localBoard.find(function(entry){
-    return cleanStudentKey(entry.name || "") === cleanStudentKey(name);
-  });
+  showRecord(null);
+  const localEntry = getLocalLeaderboard().find(function(entry){ return cleanStudentKey(entry.name || "") === cleanStudentKey(name); });
   if(localEntry) showRecord(localEntry);
-
   if(leaderboardRef){
-    const key = cleanStudentKey(name);
-    leaderboardRef.child(key).once("value").then(function(snapshot){
-      showRecord(snapshot.val());
-    }).catch(function(){
-      fetchStudentRecordRest(name).then(showRecord).catch(function(){});
-    });
+    leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){ showRecord(snapshot.val()); }).catch(function(){ fetchStudentRecordRest(name).then(showRecord).catch(function(){}); });
   } else {
     fetchStudentRecordRest(name).then(showRecord).catch(function(){});
   }
 }
 
+
 function updatePersonalBestStreak(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
-
   const display = document.getElementById("personalBestStreakDisplay");
-
   if(display){
     display.textContent = "Your best streak so far: " + Math.max(streak, 0) + " 🔥  |  Time played: " + getCurrentPlayTimeText();
     display.classList.remove("hidden");
   }
-
-  if(!leaderboardRef){
-    if(streak > 0){
-      saveStudentRecordRest(name, {
-        bestStreak: streak,
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      }).catch(function(){});
-    }
-    return;
-  }
-
-  const key = cleanStudentKey(name);
-  const studentRef = leaderboardRef.child(key);
-
+  const update = {bestStreak: streak, bestStreakSeconds: currentPlaySeconds || 0, bestStreakTime: getCurrentPlayTimeText()};
+  saveStudentRecordRest(name, update).catch(function(){});
+  if(!leaderboardRef) return;
+  const studentRef = leaderboardRef.child(cleanStudentKey(name));
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val() || {};
     const oldBest = old.bestStreak || old.streak || 0;
-    const oldBestTimeMissing = !old.bestStreakTime || old.bestStreakTime === "00:00";
-
     if(streak > oldBest){
-      studentRef.update({
-        bestStreak: streak,
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      });
-
-      if(display){
-        display.textContent = "New personal best streak: " + streak + " 🔥  |  Time played: " + getCurrentPlayTimeText();
-        display.classList.remove("hidden");
-      }
-      return;
-    }
-
-    if(oldBestTimeMissing && oldBest > 0 && currentPlaySeconds > 0){
-      studentRef.update({
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      });
-    }
-
-    if(display){
+      studentRef.update(update);
+      if(display) display.textContent = "New personal best streak: " + streak + " 🔥  |  Time played: " + getCurrentPlayTimeText();
+    } else if(display){
       const shownTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
       display.textContent = "Your best streak so far: " + oldBest + " 🔥  |  Time played: " + shownTime;
-      display.classList.remove("hidden");
     }
-  }).catch(function(){
-    // Keep local/current display.
-  });
+  }).catch(function(){});
 }
 
-function updateOnlineLeaderboard(){
-  saveLocalLeaderboardEntry();
-  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved. Online leaderboard will sync if connected.");
 
+function updateOnlineLeaderboard(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
-
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
   const current = {
-    name: name,
-    score: score,
-    attempts: attempts,
-    accuracy: accuracy,
-    streak: streak,
+    name, score, attempts, accuracy, streak,
     bestStreak: streak,
     playSeconds: currentPlaySeconds || 0,
     playTime: getCurrentPlayTimeText(),
@@ -2225,27 +2120,14 @@ function updateOnlineLeaderboard(){
     performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
     updatedAt: Date.now()
   };
-
-  // REST save works better in Safari and when the Firebase SDK is slow.
-  saveStudentRecordRest(name, current).then(function(){
-    connectLeaderboardRestFallback();
-  }).catch(function(){});
-
-  if(!leaderboardRef){
-    return;
-  }
-
-  const key = cleanStudentKey(name);
-  const studentRef = leaderboardRef.child(key);
-
+  saveLocalLeaderboardEntry();
+  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved. Online leaderboard will sync if connected.");
+  saveStudentRecordRest(name, current).then(function(){ connectLeaderboardRestFallback(); }).catch(function(){});
+  if(!leaderboardRef) return;
+  const studentRef = leaderboardRef.child(cleanStudentKey(name));
   studentRef.once("value").then(function(snapshot){
     const old = snapshot.val();
-
-    const better = !old ||
-      current.score > (old.score || 0) ||
-      (current.score === (old.score || 0) && current.accuracy > (old.accuracy || 0)) ||
-      (current.score === (old.score || 0) && current.accuracy === (old.accuracy || 0) && current.streak > (old.streak || 0));
-
+    const better = !old || current.score > (old.score || 0) || (current.score === (old.score || 0) && current.accuracy > (old.accuracy || 0)) || (current.score === (old.score || 0) && current.accuracy === (old.accuracy || 0) && current.streak > (old.streak || 0));
     if(better){
       if(old && old.bestStreak && old.bestStreak > current.bestStreak){
         current.bestStreak = old.bestStreak;
@@ -2254,195 +2136,272 @@ function updateOnlineLeaderboard(){
       }
       studentRef.set(current);
     } else if(old && streak > (old.bestStreak || old.streak || 0)){
-      studentRef.update({
-        bestStreak: streak,
-        bestStreakSeconds: currentPlaySeconds || 0,
-        bestStreakTime: getCurrentPlayTimeText()
-      });
+      studentRef.update({bestStreak: streak, bestStreakSeconds: currentPlaySeconds || 0, bestStreakTime: getCurrentPlayTimeText()});
     }
-  }).catch(function(){
-    // Keep local leaderboard visible.
-  });
+  }).catch(function(){});
 }
 
-function getLocalLeaderboard(){
-  try {
-    return JSON.parse(localStorage.getItem("conjugaisonBattleLocalLeaderboard") || "[]");
-  } catch(e) {
-    return [];
-  }
-}
-
-function saveLocalLeaderboardEntry(){
-  const name = getStudentName();
-  if(name === "Unnamed student") return;
-
-  const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
-  const entry = {
-    name: name,
-    score: score,
-    attempts: attempts,
-    accuracy: accuracy,
-    streak: streak,
-    bestStreak: streak,
-    playSeconds: currentPlaySeconds || 0,
-    playTime: getCurrentPlayTimeText(),
-    bestStreakSeconds: currentPlaySeconds || 0,
-    bestStreakTime: getCurrentPlayTimeText(),
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
-    updatedAt: Date.now()
-  };
-
-  const board = getLocalLeaderboard();
-  const key = cleanStudentKey(name);
-  const existingIndex = board.findIndex(function(item){
-    return cleanStudentKey(item.name || "") === key;
-  });
-
-  if(existingIndex >= 0){
-    const old = board[existingIndex];
-    const better = (entry.performancePoints || 0) > (old.performancePoints || 0);
-    if(better){
-      board[existingIndex] = entry;
-    }
-  } else {
-    board.push(entry);
-  }
-
-  board.sort(function(a, b){
-    return (b.performancePoints || 0) - (a.performancePoints || 0);
-  });
-
-  localStorage.setItem("conjugaisonBattleLocalLeaderboard", JSON.stringify(board.slice(0, 20)));
-}
-
-function renderLeaderboardBoard(board, sourceLabel){
-  const container = document.getElementById("leaderboardContainer");
-  const status = document.getElementById("leaderboardStatus");
-  if(!container) return;
-
-  if(!board || board.length === 0){
-    container.innerHTML = '<p class="leaderboard-empty">No scores yet. Enter your name and answer some questions.</p>';
-    if(status) status.textContent = sourceLabel || "Leaderboard ready.";
-    return;
-  }
-
-  container.innerHTML =
-    '<table class="leaderboard">' +
-    '<thead><tr><th>#</th><th>Name</th><th>Score</th><th>Accuracy</th><th>Streak</th><th>Time</th><th>Performance</th></tr></thead>' +
-    '<tbody>' +
-    board.map(function(entry, index){
-      const perf = entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0);
-      const time = (entry.bestStreakTime && entry.bestStreakTime !== "00:00") ? entry.bestStreakTime : ((entry.playTime && entry.playTime !== "00:00") ? entry.playTime : "00:00");
-      return '<tr>' +
-        '<td class="rank">' + (index + 1) + '</td>' +
-        '<td>' + (entry.name || "Unnamed") + '</td>' +
-        '<td>' + (entry.score || 0) + '/' + (entry.attempts || 0) + '</td>' +
-        '<td>' + (entry.accuracy || 0) + '%</td>' +
-        '<td>' + (entry.bestStreak || entry.streak || 0) + '</td>' +
-        '<td>' + time + '</td>' +
-        '<td>' + perf + '</td>' +
-        '</tr>';
-    }).join("") +
-    '</tbody></table>';
-
-  if(status) status.textContent = sourceLabel || "Leaderboard loaded.";
-}
 
 function renderLeaderboardFromData(data){
-  const rawBoard = Object.values(data || {});
-  const board = rawBoard.sort(function(a, b){
+  const board = Object.values(data || {}).sort(function(a, b){
     const aPoints = a.performancePoints || calculatePerformancePoints(a.score || 0, a.attempts || 0, a.accuracy || 0, a.bestStreak || a.streak || 0, a.playSeconds || a.bestStreakSeconds || 0);
     const bPoints = b.performancePoints || calculatePerformancePoints(b.score || 0, b.attempts || 0, b.accuracy || 0, b.bestStreak || b.streak || 0, b.playSeconds || b.bestStreakSeconds || 0);
-
     if(bPoints !== aPoints) return bPoints - aPoints;
     if((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
     if((b.accuracy || 0) !== (a.accuracy || 0)) return (b.accuracy || 0) - (a.accuracy || 0);
     if((b.bestStreak || b.streak || 0) !== (a.bestStreak || a.streak || 0)) return (b.bestStreak || b.streak || 0) - (a.bestStreak || a.streak || 0);
     return (a.playSeconds || a.bestStreakSeconds || 999999) - (b.playSeconds || b.bestStreakSeconds || 999999);
-  }).slice(0, 20);
+  }).slice(0,20);
+  renderLeaderboardBoard(board, board.length ? "Live leaderboard connected." : "Leaderboard ready. Scores will appear after students answer.");
+}
 
-  if(board.length === 0){
-    const localBoard = getLocalLeaderboard();
-    if(localBoard.length > 0){
-      renderLeaderboardBoard(localBoard, "Showing local leaderboard while online leaderboard is empty.");
-    } else {
-      renderLeaderboardBoard([], "Online leaderboard connected, but no scores have been saved yet.");
-    }
-    return;
-  }
 
-  renderLeaderboardBoard(board, "Live online leaderboard connected.");
+function connectLeaderboardRestFallback(){
+  const localBoard = getLocalLeaderboard();
+  renderLeaderboardBoard(localBoard, localBoard.length ? "Showing saved scores while online leaderboard connects." : "Leaderboard ready. Scores will appear after students answer.");
+  fetchLeaderboardRest().then(function(data){ renderLeaderboardFromData(data || {}); }).catch(function(){});
 }
 
 function connectOnlineLeaderboard(){
-  const localBoard = getLocalLeaderboard();
-
-  // Always show something immediately. Never leave the box stuck on "Connecting".
-  renderLeaderboardBoard(
-    localBoard,
-    localBoard.length
-      ? "Showing saved scores while online leaderboard connects."
-      : "Leaderboard ready. Scores will appear after students answer."
-  );
-
-  let onlineLoaded = false;
-
-  // Try the normal Firebase live connection.
+  renderLeaderboardBoard(getLocalLeaderboard(), getLocalLeaderboard().length ? "Showing saved scores while online leaderboard connects." : "Leaderboard ready. Scores will appear after students answer.");
+  let loaded = false;
   if(leaderboardRef){
     try {
-      leaderboardRef.on("value", function(snapshot){
-        onlineLoaded = true;
-        renderLeaderboardFromData(snapshot.val());
-      }, function(error){
-        connectLeaderboardRestFallback();
-      });
-    } catch(error) {
-      connectLeaderboardRestFallback();
-    }
+      leaderboardRef.on("value", function(snapshot){ loaded = true; renderLeaderboardFromData(snapshot.val() || {}); }, function(){ connectLeaderboardRestFallback(); });
+    } catch(error){ connectLeaderboardRestFallback(); }
   } else {
     connectLeaderboardRestFallback();
   }
-
-  // Safety fallback: if the live connection has not returned quickly, use REST.
-  setTimeout(function(){
-    if(!onlineLoaded){
-      connectLeaderboardRestFallback();
-    }
-  }, 1800);
-
-  // Final safety: make sure the original loading text cannot remain.
-  setTimeout(function(){
-    const container = document.getElementById("leaderboardContainer");
-    const status = document.getElementById("leaderboardStatus");
-    if(container && container.textContent.indexOf("Leaderboard loading") !== -1){
-      renderLeaderboardBoard(getLocalLeaderboard(), "Leaderboard ready. Scores will appear after students answer.");
-    }
-    if(status && status.textContent.indexOf("Connecting") !== -1){
-      status.textContent = "Leaderboard ready. Scores will appear after students answer.";
-    }
-  }, 3000);
+  setTimeout(function(){ if(!loaded) connectLeaderboardRestFallback(); }, 1800);
 }
 
 
+const correctEmojis = ["🎉","🌟","🥳","🚀","🏆","💫","😎","👏","🔥","🦄","🍟","🧠","⚡","✨","🎯","💪","🐸","🍕","🤩","🙌","😺","🥐","🎈","🪄"];
+const wrongEmojis = ["😅","🙃","🤔","🐢","🍌","🫣","😬","🧩","🧐","🌧️","🐌","🤯","👀","🥲","🫠","🎭","🦥","💭","📚","🔁","🐣","🥖","🛸","🧀"];
+let soundOn = true;
+let audioContext = null;
+
+function getAudioContext(){
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    if(!audioContext) audioContext = new Ctx();
+    return audioContext;
+  } catch(error) {
+    return null;
+  }
+}
+
+
+function playTone(frequency, duration, type="sine", delay=0, volume=0.08){
+  if(!soundOn) return;
+  const ctx = getAudioContext();
+  if(!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + duration + 0.02);
+  } catch(error) {}
+}
+
+
+
+function floodCorrectEmojis(){
+  const container = document.getElementById("emojiBurst");
+  if(!container) return;
+
+  let count = 0;
+  const max = 14;
+  const interval = setInterval(() => {
+    const emoji = document.createElement("div");
+    emoji.className = "big-emoji";
+    emoji.textContent = randomItem(correctEmojis);
+    emoji.style.left = Math.random() * 88 + "vw";
+    emoji.style.top = Math.random() * 76 + "vh";
+    emoji.style.fontSize = (58 + Math.random() * 46) + "px";
+    container.appendChild(emoji);
+
+    setTimeout(() => emoji.remove(), 760);
+    count++;
+
+    if(count >= max){
+      clearInterval(interval);
+    }
+  }, 45);
+}
+
+
+function isIrregularVerbForPhoto(verb){
+  const base = stripReflexive ? stripReflexive(verb) : verb;
+
+  const erIrregularSet = new Set([
+    "aller","envoyer","renvoyer","nettoyer","employer","essayer","payer","balayer",
+    "acheter","lever","amener","emmener","appeler","jeter","préférer","espérer","répéter","célébrer"
+  ]);
+
+  const irIrregularSet = new Set([
+    "venir","tenir","abstenir","appartenir","contenir","détenir","entretenir","maintenir","obtenir","retenir","soutenir",
+    "advenir","convenir","devenir","intervenir","parvenir","prévenir","provenir","revenir","survenir",
+    "ouvrir","offrir","souffrir","cueillir","accueillir","recueillir",
+    "partir","sortir","dormir","servir","sentir","courir","mourir"
+  ]);
+
+  const oirIrregularSet = new Set([
+    "avoir","voir","revoir","prévoir","entrevoir","pouvoir","vouloir","devoir","savoir","recevoir","apercevoir",
+    "concevoir","décevoir","percevoir","falloir","pleuvoir","valoir","prévaloir","asseoir","émouvoir","promouvoir"
+  ]);
+
+  if(erIrregularSet.has(base) || irIrregularSet.has(base) || oirIrregularSet.has(base)) return true;
+  if(typeof irregular !== "undefined" && irregular[base]) return true;
+  if(typeof matchFamily === "function" && matchFamily(base)) return true;
+  if(typeof advancedFamilyForm === "function" && advancedFamilyForm(base, "present", "je")) return true;
+
+  return false;
+}
+
+
+const funnyAnimalEmojis = ["🐶","🐱","🐵","🦙","🐐","🦭","🐸","🦊","🐷","🐰","🐼","🐨","🦁","🐯","🐮","🐔","🦆","🦉","🐴","🦄"];
+
+function showFunnyAnimalPop(){
+  const existing = document.getElementById("animalPopOverlay");
+  if(existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "animalPopOverlay";
+  overlay.className = "animal-pop-overlay";
+
+  const card = document.createElement("div");
+  card.className = "animal-pop-card";
+  card.textContent = randomItem(funnyAnimalEmojis);
+
+  const caption = document.createElement("div");
+  caption.className = "animal-pop-caption";
+  caption.textContent = "Irregular verb champion! 😂";
+
+  overlay.appendChild(card);
+  overlay.appendChild(caption);
+  document.body.appendChild(overlay);
+
+  setTimeout(function(){
+    overlay.remove();
+  }, 1000);
+}
+
+
+function playCorrectSound(){
+  // Soft magical sparkle sound for every correct answer
+  playTone(659.25, 0.10, "sine", 0.00, 0.055);
+  playTone(987.77, 0.12, "triangle", 0.06, 0.050);
+  playTone(1318.51, 0.14, "sine", 0.13, 0.045);
+  playTone(1760.00, 0.18, "triangle", 0.22, 0.035);
+  playTone(2637.02, 0.16, "sine", 0.34, 0.025);
+}
+
+
+function floodWrongEmojis(){
+  const container = document.getElementById("wrongEmojiBurst");
+  if(!container) return;
+
+  const emoji = document.createElement("div");
+  emoji.className = "huge-wrong-emoji";
+  emoji.textContent = randomItem(wrongEmojis);
+  emoji.style.left = (18 + Math.random() * 58) + "vw";
+  emoji.style.top = (10 + Math.random() * 45) + "vh";
+  emoji.style.fontSize = (115 + Math.random() * 50) + "px";
+
+  container.appendChild(emoji);
+  setTimeout(function(){
+    emoji.remove();
+  }, 1000);
+}
+
+
+function playWrongSound(){
+  playTone(220, 0.16, "sawtooth", 0, 0.055);
+  playTone(164.81, 0.20, "sawtooth", 0.13, 0.055);
+}
+
+function toggleSound(){
+  soundOn = !soundOn;
+  document.getElementById("soundButton").textContent = soundOn ? "🔊 Sound: ON" : "🔇 Sound: OFF";
+}
+const tenseLabels = {randomTense:"Random tense / Temps aléatoire",
+present:"Présent de l’indicatif",passeCompose:"Passé composé",imparfait:"Imparfait",plusQueParfait:"Plus-que-parfait",passeSimple:"Passé simple",passeAnterieur:"Passé antérieur",futur:"Futur simple",futurAnterieur:"Futur antérieur",imperatif:"Impératif",participes:"Participe présent / Participe passé",infinitifPasse:"Infinitif passé",conditionnel:"Présent du conditionnel",conditionnelPasse:"Conditionnel passé",subjonctif:"Présent du subjonctif"};
+const quizTenses = [
+  "present",
+  "passeCompose",
+  "imparfait",
+  "plusQueParfait",
+  "passeSimple",
+  "passeAnterieur",
+  "futur",
+  "futurAnterieur",
+  "imperatif",
+  "participes",
+  "infinitifPasse",
+  "conditionnel",
+  "conditionnelPasse",
+  "subjonctif"
+];
+
+let currentQuestion={}, customVerb=null, score=0, attempts=0, streak=0;
+let questionLocked = false;
+
+function randomItem(arr){
+  if(!Array.isArray(arr) || arr.length === 0) return null;
+  return arr[Math.floor(Math.random()*arr.length)];
+}
+
+function normalise(t){return t.trim().toLowerCase().normalize("NFC")}
+
+function getMeaning(v){
+  const candidates = [
+    v,
+    v.replace(/'/g, "’"),
+    v.replace(/’/g, "'")
+  ];
+
+  for(const item of candidates){
+    if(typeof finalEnglishMeanings !== "undefined" && finalEnglishMeanings[item]) return finalEnglishMeanings[item];
+    if(typeof englishMeanings !== "undefined" && englishMeanings[item]) return englishMeanings[item];
+  }
+
+  if(v.startsWith("se ") || v.startsWith("s’") || v.startsWith("s'")) return "reflexive verb";
+  return "French verb";
+}
+function groupOf(v){ if(v.startsWith("se ") || v.startsWith("s’") || v.startsWith("s\'")) return "reflexive"; if(v==="être"||v==="avoir"||pools.irregular.includes(v)) return "irregular"; if(v.endsWith("er"))return"er"; if(v.endsWith("ir"))return"ir"; if(v.endsWith("re"))return"re"; if(v.endsWith("oir"))return"oir"; return"unknown";}
 function ensureNonEmptyPool(pool){
   if(Array.isArray(pool) && pool.length > 0) return pool;
-
-  if(typeof verbs !== "undefined" && Array.isArray(verbs) && verbs.length > 0) return verbs;
-  if(typeof VERBS !== "undefined" && Array.isArray(VERBS) && VERBS.length > 0) return VERBS;
-  if(typeof allVerbs !== "undefined" && Array.isArray(allVerbs) && allVerbs.length > 0) return allVerbs;
-  if(typeof baseVerbs !== "undefined" && Array.isArray(baseVerbs) && baseVerbs.length > 0) return baseVerbs;
-
-  return [
-    {inf:"finir", group:"IR", meaning:"to finish"},
-    {inf:"choisir", group:"IR", meaning:"to choose"},
-    {inf:"grandir", group:"IR", meaning:"to grow"},
-    {inf:"parler", group:"ER", meaning:"to speak"},
-    {inf:"vendre", group:"RE", meaning:"to sell"}
-  ];
+  const fallback = [];
+  try { fallback.push(...(pools.er || []), ...(pools.ir || []), ...(pools.re || []), ...(pools.oir || []), ...(pools.irregular || []), ...(reflexiveVerbs || [])); } catch(e) {}
+  return fallback.length ? fallback : ["parler","finir","vendre","être","avoir"];
 }
 
-function selectedPool(){const c=document.getElementById("category").value; if(c==="all")return getVerifiedAllVerbs(); if(c==="reoir")return [...pools.re,...pools.oir]; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="irregular")return pools.irregular; if(c==="reflexive")return reflexiveVerbs; return pools[c];}
+function selectedPool(){
+  const el = document.getElementById("category");
+  const c = el ? el.value : "all";
+  let pool = [];
+  try {
+    if(c === "all") pool = getVerifiedAllVerbs();
+    else if(c === "reoir") pool = [...(pools.re || []), ...(pools.oir || [])];
+    else if(c === "erIrregular") pool = erIrregularVerbs;
+    else if(c === "irIrregular") pool = irIrregularVerbs;
+    else if(c === "oirIrregular") pool = oirIrregularVerbs;
+    else if(c === "irregular") pool = pools.irregular;
+    else if(c === "reflexive") pool = reflexiveVerbs;
+    else pool = pools[c];
+  } catch(error) { pool = []; }
+  return ensureNonEmptyPool(pool);
+}
+
 function groupDisplay(v){const g=groupOf(v); if(g==="er")return"ER"; if(g==="ir")return"IR"; if(g==="re")return"RE"; if(g==="oir")return"OIR"; if(g==="reflexive") return "Reflexive"; return"Irregular";}
 function stemForImparfait(v){ if(irregular[v]?.present?.nous) return irregular[v].present.nous.replace(/ons$/,""); if(v.endsWith("er")){let s=v.slice(0,-2); if(v.endsWith("ger"))return s+"e"; if(v.endsWith("cer"))return s.slice(0,-1)+"ç"; return s;} if(v.endsWith("ir"))return v.slice(0,-2)+"iss"; if(v.endsWith("re"))return v.slice(0,-2)+"d"; return v;}
 function stripReflexive(v){
@@ -3220,108 +3179,72 @@ function answerFor(v, tense, p){
 }
 
 function makeQuestion(){
- const selectedCategory = document.getElementById("category").value;
- let tense=document.getElementById("tense").value;
- if(tense==="randomTense"){
-   tense = randomItem(quizTenses);
- }
-
- let customMode = document.getElementById("mode").value==="custom" && customVerb;
- let v = customMode ? customVerb : randomItem(ensureNonEmptyPool(selectedPool()));
- let p = tense==="imperatif" ? randomItem(imperatifs) : ((tense.startsWith("infinitif") || tense==="participes") ? "form" : randomItem(pronouns));
-
- if(["falloir","pleuvoir"].includes(v) && !(tense==="imperatif" || tense.startsWith("infinitif") || tense==="participes")) {
-   p = "il/elle/on";
- }
-
- let a = answerFor(v,tense,p);
-
- // In random mode, never show an unsupported form. Keep trying within the selected category.
- let tries = 0;
- while(!a && tries < 200 && !customMode){
-   v = randomItem(ensureNonEmptyPool(selectedPool()));
-   if(document.getElementById("tense").value==="randomTense"){
-     tense = randomItem(quizTenses);
-   }
-   p = tense==="imperatif" ? randomItem(imperatifs) : ((tense.startsWith("infinitif") || tense==="participes") ? "form" : randomItem(pronouns));
-   if(["falloir","pleuvoir"].includes(v) && !(tense==="imperatif" || tense.startsWith("infinitif") || tense==="participes")) {
-     p = "il/elle/on";
-   }
-   a = answerFor(v,tense,p);
-   tries++;
- }
-
- // In custom mode, be honest and do not invent a form.
- if(!a && customMode){
-   a = "This form is not available from the verified conjugation database";
- }
-
- // If a selected category has no available form for the chosen tense, fall back to a safe regular verb.
- if(!a){
-   v = "parler";
-   tense = "present";
-   p = "je";
-   a = answerFor(v,tense,p) || "parle";
- }
-
- return {verb:v, prompt:p, tense, answer:a, group:groupDisplay(v)};
+  const tenseEl = document.getElementById("tense");
+  const modeEl = document.getElementById("mode");
+  let tense = tenseEl ? tenseEl.value : "present";
+  if(tense === "randomTense") tense = randomItem(quizTenses) || "present";
+  const customMode = modeEl && modeEl.value === "custom" && customVerb;
+  let pool = ensureNonEmptyPool(selectedPool());
+  let v = customMode ? customVerb : (randomItem(pool) || pool[0] || "parler");
+  let p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
+  if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
+  let a = answerFor(v, tense, p);
+  let tries = 0;
+  while(!a && tries < 200 && !customMode){
+    pool = ensureNonEmptyPool(selectedPool());
+    v = randomItem(pool) || pool[0] || "parler";
+    if(tenseEl && tenseEl.value === "randomTense") tense = randomItem(quizTenses) || "present";
+    p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
+    if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
+    a = answerFor(v, tense, p);
+    tries++;
+  }
+  if(!a && customMode) a = "This form is not available from the verified conjugation database";
+  if(!a){ v = "parler"; tense = "present"; p = "je"; a = answerFor(v, tense, p) || "parle"; }
+  return {verb:v, prompt:p, tense:tense, answer:a, group:groupDisplay(v)};
 }
 
-function newQuestion(){ currentQuestion=makeQuestion();
- questionLocked = false; document.getElementById("verb").textContent=currentQuestion.verb; document.getElementById("meaning").textContent=getMeaning(currentQuestion.verb); document.getElementById("pronoun").textContent =
-(currentQuestion.prompt==="form") ? "Forme verbale" : currentQuestion.prompt; document.getElementById("tenseDisplay").textContent=tenseLabels[currentQuestion.tense]; document.getElementById("groupDisplay").textContent=currentQuestion.group; document.getElementById("answer").value=""; document.getElementById("feedback").innerHTML=""; document.getElementById("feedback").className=""; document.getElementById("answer").focus(); updateVerbPool();}
-function useCustomVerb(){const typed=normalise(document.getElementById("customVerb").value).replace(/’/g,"'"); if(!typed||groupOf(typed)==="unknown"){msg("Please type a French infinitive ending in ER, IR, RE or OIR, or a common irregular verb from the bank.","wrong"); return;} customVerb=typed; document.getElementById("mode").value="custom"; 
-document.addEventListener("DOMContentLoaded", function(){
-  const btn = document.getElementById("startActivityButton");
-  if(btn){
-    btn.addEventListener("click", startActivity);
-  }
-});
 
-newQuestion();}
+function newQuestion(){
+  try {
+    currentQuestion = makeQuestion();
+    questionLocked = false;
+    const verb = document.getElementById("verb");
+    const meaning = document.getElementById("meaning");
+    const pronoun = document.getElementById("pronoun");
+    const tenseDisplay = document.getElementById("tenseDisplay");
+    const group = document.getElementById("groupDisplay");
+    const answer = document.getElementById("answer");
+    const feedback = document.getElementById("feedback");
+    if(verb) verb.textContent = currentQuestion.verb;
+    if(meaning) meaning.textContent = getMeaning(currentQuestion.verb);
+    if(pronoun) pronoun.textContent = (currentQuestion.prompt === "form") ? "Forme verbale" : currentQuestion.prompt;
+    if(tenseDisplay) tenseDisplay.textContent = tenseLabels[currentQuestion.tense] || currentQuestion.tense;
+    if(group) group.textContent = currentQuestion.group;
+    if(answer){ answer.value = ""; answer.focus(); }
+    if(feedback){ feedback.innerHTML = ""; feedback.className = ""; }
+    updateVerbPool();
+  } catch(error) {
+    console.error("newQuestion error", error);
+    const feedback = document.getElementById("feedback");
+    if(feedback){ feedback.className = "feedback wrong"; feedback.textContent = "The app recovered from a dropdown issue. Please choose another option or press Skip."; }
+  }
+}
+
+function useCustomVerb(){
+  const input = document.getElementById("customVerb");
+  const typed = normalise(input ? input.value : "").replace(/’/g,"'");
+  if(!typed || groupOf(typed) === "unknown"){
+    msg("Please type a French infinitive ending in ER, IR, RE or OIR, or a common irregular verb from the bank.","wrong");
+    return;
+  }
+  customVerb = typed;
+  const mode = document.getElementById("mode");
+  if(mode) mode.value = "custom";
+  newQuestion();
+}
+
 function msg(t,c){const f=document.getElementById("feedback"); f.className="feedback "+c; f.textContent=t;}
-
-function normalise(text){
-  return String(text || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFC")
-    .replace(/\s+/g, " ")
-    .replace(/[’‘`´]/g, "'");
-}
-
-
-window.normalise = normalise;
-
-
-function randomItem(list){
-  if(!Array.isArray(list) || list.length === 0){
-    return null;
-  }
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function safeArray(value, fallback){
-  return Array.isArray(value) && value.length ? value : fallback;
-}
-
-
-if(typeof correctEmojis === "undefined"){
-  var correctEmojis = ["✨","🌟","🎉","👏","✅","💫"];
-}
-if(typeof wrongEmojis === "undefined"){
-  var wrongEmojis = ["😢","😬","😵","🙃","😟"];
-}
-if(typeof praise === "undefined"){
-  var praise = ["Great work!", "Well done!", "Excellent!", "Nice work!", "Correct!"];
-}
-if(typeof tryAgain === "undefined"){
-  var tryAgain = ["Keep trying!", "Have another go!", "Good effort!", "Check this one."];
-}
-
-
-window.randomItem = randomItem;
-
 function checkAnswer(){
   if(questionLocked) return;
 
@@ -3353,7 +3276,6 @@ function checkAnswer(){
     document.getElementById("answer").value="";
     updateScore();
     updateOnlineLeaderboard();
-    renderLeaderboardBoard(getLocalLeaderboard(), 'Score saved locally; online leaderboard will sync if connected.');
     updatePersonalBestStreak();
     setTimeout(newQuestion,650);
   } else {
@@ -3365,7 +3287,6 @@ function checkAnswer(){
     document.getElementById("answer").value="";
     updateScore();
     updateOnlineLeaderboard();
-    renderLeaderboardBoard(getLocalLeaderboard(), 'Score saved locally; online leaderboard will sync if connected.');
     updatePersonalBestStreak();
     setTimeout(newQuestion,850);
   }
@@ -3373,24 +3294,30 @@ function checkAnswer(){
 
 function updateScore(){document.getElementById("score").textContent=score; document.getElementById("attempts").textContent=attempts; document.getElementById("streak").textContent=streak; document.getElementById("accuracy").textContent=attempts===0?0:Math.round(score/attempts*100);}
 function resetGame(){score=0;attempts=0;streak=0;customVerb=null;document.getElementById("mode").value="random";document.getElementById("customVerb").value="";updateScore();newQuestion();}
-function updateVerbPool(){document.getElementById("verbPool").innerHTML=selectedPool().map(v=>`<span class="pill">${v} — ${getMeaning(v)}</span>`).join("");}
-["category","tense","mode"].forEach(id=>document.getElementById(id).addEventListener("change",()=>{if(id==="category"){customVerb=null;document.getElementById("mode").value="random";}newQuestion();}));
+function updateVerbPool(){
+  const poolBox = document.getElementById("verbPool");
+  if(!poolBox) return;
+  const pool = ensureNonEmptyPool(selectedPool());
+  poolBox.innerHTML = pool.map(function(v){ return `<span class="pill">${v} — ${getMeaning(v)}</span>`; }).join("");
+}
+
+["category","tense","mode"].forEach(function(id){
+  const el = document.getElementById(id);
+  if(el){
+    el.addEventListener("change", function(){
+      if(id === "category"){
+        customVerb = null;
+        const mode = document.getElementById("mode");
+        if(mode) mode.value = "random";
+      }
+      newQuestion();
+    });
+  }
+});
 document.getElementById("answer").addEventListener("keydown",e=>{if(e.key==="Enter")checkAnswer();});
 newQuestion();
 prepareStartScreen();
 connectOnlineLeaderboard();
-
-setTimeout(function(){
-  try {
-    connectOnlineLeaderboard();
-  } catch(error) {
-    const status = document.getElementById("leaderboardStatus");
-    const container = document.getElementById("leaderboardContainer");
-    if(container) container.innerHTML = '<p class="leaderboard-empty">Leaderboard ready. Scores will appear after students answer.</p>';
-    if(status) status.textContent = "Leaderboard ready. Scores will appear after students answer.";
-  }
-}, 500);
-
 </script>
 
 <script type="module">
