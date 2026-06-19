@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Conjugaison Battle Verified Only</title>
+<title>Conjugaison Battle v49</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#eff6ff,#f0fdf4);color:#1e293b;min-height:100vh;padding:24px}
 .container{max-width:1180px;margin:0 auto} header{text-align:center;margin-bottom:22px} .badge{display:inline-block;background:white;padding:8px 14px;border-radius:999px;box-shadow:0 2px 8px #0001;font-size:14px;margin-bottom:10px}
@@ -1516,12 +1516,16 @@ irIrregularVerbs = restoredIrregularVerbs.filter(function(v){ return v.endsWith(
 oirIrregularVerbs = restoredIrregularVerbs.filter(function(v){ return v.endsWith("oir") || ["avoir","savoir","falloir","pleuvoir","valoir"].includes(v); });
 
 function getVerifiedAllVerbs(){
-  if(window.LefffConjugations){
-    return Object.keys(window.LefffConjugations).filter(function(v){
-      return !v.includes(" ") && v.length > 1;
-    });
-  }
-  return Array.from(new Set([].concat(restoredErVerbs, restoredIrVerbs, restoredReVerbs, restoredIrregularVerbs, reflexiveVerbs)));
+  // Use the curated classroom pools so every displayed verb has a stable meaning.
+  // The external Lefff database is still used for answers when it is available.
+  return Array.from(new Set([].concat(
+    restoredErVerbs || [],
+    restoredIrVerbs || [],
+    restoredReVerbs || [],
+    pools.oir || [],
+    restoredIrregularVerbs || [],
+    reflexiveVerbs || []
+  )));
 }
 
 window.onVerifiedConjugationsReady = function(){
@@ -1952,13 +1956,14 @@ function getLocalLeaderboard(){
   try { return JSON.parse(localStorage.getItem("conjugaisonBattleLocalLeaderboard") || "[]"); }
   catch(e){ return []; }
 }
+
 function calculatePerformancePoints(score, attempts, accuracy, bestStreak, playSeconds){
   score = Number(score || 0);
   attempts = Number(attempts || 0);
   accuracy = Number(accuracy || 0);
   bestStreak = Number(bestStreak || 0);
   playSeconds = Number(playSeconds || 0);
-  const timePenalty = playSeconds > 0 ? Math.min(50, Math.floor(playSeconds / 60)) : 0;
+  const timePenalty = playSeconds > 0 ? Math.min(60, Math.floor(playSeconds / 30)) : 0;
   return Math.max(0, Math.round((score * 10) + (accuracy * 2) + (bestStreak * 5) - timePenalty));
 }
 
@@ -1984,27 +1989,42 @@ function saveLocalLeaderboardEntry(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
-  const entry = {
-    name, score, attempts, accuracy, streak,
-    bestStreak: streak,
-    playSeconds: currentPlaySeconds || 0,
-    playTime: getCurrentPlayTimeText(),
-    bestStreakSeconds: currentPlaySeconds || 0,
-    bestStreakTime: getCurrentPlayTimeText(),
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
-    updatedAt: Date.now()
-  };
   const board = getLocalLeaderboard();
   const key = cleanStudentKey(name);
   const index = board.findIndex(function(item){ return cleanStudentKey(item.name || "") === key; });
+  const old = index >= 0 ? board[index] : null;
+  const bestStreak = Math.max(streak || 0, old ? (old.bestStreak || old.streak || 0) : 0);
+  let bestStreakTime = old && old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
+  let bestStreakSeconds = old && old.bestStreakSeconds ? old.bestStreakSeconds : (currentPlaySeconds || 0);
+  if(streak >= (old ? (old.bestStreak || old.streak || 0) : 0)){
+    bestStreakTime = getCurrentPlayTimeText();
+    bestStreakSeconds = currentPlaySeconds || 0;
+  }
+  const entry = {
+    name: name,
+    score: score,
+    attempts: attempts,
+    accuracy: accuracy,
+    streak: streak,
+    bestStreak: bestStreak,
+    playSeconds: currentPlaySeconds || 0,
+    playTime: getCurrentPlayTimeText(),
+    bestStreakSeconds: bestStreakSeconds,
+    bestStreakTime: bestStreakTime,
+    performancePoints: calculatePerformancePoints(score, attempts, accuracy, bestStreak, currentPlaySeconds || 0),
+    updatedAt: Date.now()
+  };
   if(index >= 0){
-    if((entry.performancePoints || 0) >= (board[index].performancePoints || 0)) board[index] = entry;
+    if((entry.performancePoints || 0) >= (board[index].performancePoints || 0) || bestStreak > (board[index].bestStreak || board[index].streak || 0)){
+      board[index] = entry;
+    }
   } else {
     board.push(entry);
   }
   board.sort(function(a,b){ return (b.performancePoints || 0) - (a.performancePoints || 0); });
   localStorage.setItem("conjugaisonBattleLocalLeaderboard", JSON.stringify(board.slice(0,20)));
 }
+
 
 function startActivity(){
   const startInput = document.getElementById("startStudentName");
@@ -2073,9 +2093,13 @@ function loadPersonalBestStreak(name){
   const localEntry = getLocalLeaderboard().find(function(entry){ return cleanStudentKey(entry.name || "") === cleanStudentKey(name); });
   if(localEntry) showRecord(localEntry);
   if(leaderboardRef){
-    leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){ showRecord(snapshot.val()); }).catch(function(){ fetchStudentRecordRest(name).then(showRecord).catch(function(){}); });
+    leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){
+      const data = snapshot.val();
+      if(data) showRecord(data);
+      else return fetchStudentRecordRest(name).then(function(restData){ if(restData) showRecord(restData); });
+    }).catch(function(){ fetchStudentRecordRest(name).then(function(restData){ if(restData) showRecord(restData); }).catch(function(){}); });
   } else {
-    fetchStudentRecordRest(name).then(showRecord).catch(function(){});
+    fetchStudentRecordRest(name).then(function(restData){ if(restData) showRecord(restData); }).catch(function(){});
   }
 }
 
@@ -2107,40 +2131,63 @@ function updatePersonalBestStreak(){
 
 
 function updateOnlineLeaderboard(){
+  saveLocalLeaderboardEntry();
+  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved. Online leaderboard will sync if connected.");
   const name = getStudentName();
   if(name === "Unnamed student") return;
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
-  const current = {
-    name, score, attempts, accuracy, streak,
-    bestStreak: streak,
-    playSeconds: currentPlaySeconds || 0,
-    playTime: getCurrentPlayTimeText(),
-    bestStreakSeconds: currentPlaySeconds || 0,
-    bestStreakTime: getCurrentPlayTimeText(),
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, streak, currentPlaySeconds || 0),
-    updatedAt: Date.now()
-  };
-  saveLocalLeaderboardEntry();
-  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved. Online leaderboard will sync if connected.");
-  saveStudentRecordRest(name, current).then(function(){ connectLeaderboardRestFallback(); }).catch(function(){});
+
+  function buildRecord(old){
+    const oldBest = old ? (old.bestStreak || old.streak || 0) : 0;
+    const newBest = Math.max(streak || 0, oldBest);
+    let bestTime = old && old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
+    let bestSeconds = old && old.bestStreakSeconds ? old.bestStreakSeconds : (currentPlaySeconds || 0);
+    if(streak >= oldBest){
+      bestTime = getCurrentPlayTimeText();
+      bestSeconds = currentPlaySeconds || 0;
+    }
+    return {
+      name: name,
+      score: score,
+      attempts: attempts,
+      accuracy: accuracy,
+      streak: streak,
+      bestStreak: newBest,
+      playSeconds: currentPlaySeconds || 0,
+      playTime: getCurrentPlayTimeText(),
+      bestStreakSeconds: bestSeconds,
+      bestStreakTime: bestTime,
+      performancePoints: calculatePerformancePoints(score, attempts, accuracy, newBest, currentPlaySeconds || 0),
+      updatedAt: Date.now()
+    };
+  }
+
+  fetchStudentRecordRest(name).then(function(oldRest){
+    return saveStudentRecordRest(name, buildRecord(oldRest || {}));
+  }).then(function(){
+    connectLeaderboardRestFallback();
+  }).catch(function(){});
+
   if(!leaderboardRef) return;
   const studentRef = leaderboardRef.child(cleanStudentKey(name));
   studentRef.once("value").then(function(snapshot){
-    const old = snapshot.val();
-    const better = !old || current.score > (old.score || 0) || (current.score === (old.score || 0) && current.accuracy > (old.accuracy || 0)) || (current.score === (old.score || 0) && current.accuracy === (old.accuracy || 0) && current.streak > (old.streak || 0));
+    const old = snapshot.val() || {};
+    const current = buildRecord(old);
+    const better = !old.name ||
+      current.performancePoints > (old.performancePoints || 0) ||
+      current.score > (old.score || 0) ||
+      current.bestStreak > (old.bestStreak || old.streak || 0);
     if(better){
-      if(old && old.bestStreak && old.bestStreak > current.bestStreak){
-        current.bestStreak = old.bestStreak;
-        current.bestStreakSeconds = old.bestStreakSeconds || old.playSeconds || 0;
-        current.bestStreakTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : (old.playTime || getCurrentPlayTimeText());
-      }
       studentRef.set(current);
-    } else if(old && streak > (old.bestStreak || old.streak || 0)){
-      studentRef.update({bestStreak: streak, bestStreakSeconds: currentPlaySeconds || 0, bestStreakTime: getCurrentPlayTimeText()});
+    } else if(current.bestStreak > (old.bestStreak || old.streak || 0) || !old.bestStreakTime || old.bestStreakTime === "00:00"){
+      studentRef.update({
+        bestStreak: current.bestStreak,
+        bestStreakSeconds: current.bestStreakSeconds,
+        bestStreakTime: current.bestStreakTime
+      });
     }
   }).catch(function(){});
 }
-
 
 function renderLeaderboardFromData(data){
   const board = Object.values(data || {}).sort(function(a, b){
@@ -2186,32 +2233,34 @@ function getAudioContext(){
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if(!Ctx) return null;
     if(!audioContext) audioContext = new Ctx();
+    if(audioContext && audioContext.state === "suspended" && typeof audioContext.resume === "function"){
+      audioContext.resume().catch(function(){});
+    }
     return audioContext;
   } catch(error) {
     return null;
   }
 }
 
-
 function playTone(frequency, duration, type="sine", delay=0, volume=0.08){
   if(!soundOn) return;
   const ctx = getAudioContext();
   if(!ctx) return;
   try {
-    const osc = ctx.createOscillator();
+    const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
-    gain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + duration);
-    osc.connect(gain);
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(volume, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+    oscillator.connect(gain);
     gain.connect(ctx.destination);
-    osc.start(ctx.currentTime + delay);
-    osc.stop(ctx.currentTime + delay + duration + 0.02);
-  } catch(error) {}
+    oscillator.start(ctx.currentTime + delay);
+    oscillator.stop(ctx.currentTime + delay + duration);
+  } catch(error) {
+    // Some browsers block audio until the user interacts. The game should continue silently.
+  }
 }
-
 
 
 function floodCorrectEmojis(){
@@ -2288,10 +2337,10 @@ function showFunnyAnimalPop(){
 
   overlay.appendChild(card);
   overlay.appendChild(caption);
-  document.body.appendChild(overlay);
+  if(document.body && document.body.appendChild) document.body.appendChild(overlay);
 
   setTimeout(function(){
-    overlay.remove();
+    if(overlay.remove) overlay.remove();
   }, 1000);
 }
 
@@ -2319,7 +2368,7 @@ function floodWrongEmojis(){
 
   container.appendChild(emoji);
   setTimeout(function(){
-    emoji.remove();
+    if(emoji.remove) emoji.remove();
   }, 1000);
 }
 
@@ -2360,22 +2409,47 @@ function randomItem(arr){
   return arr[Math.floor(Math.random()*arr.length)];
 }
 
-function normalise(t){return t.trim().toLowerCase().normalize("NFC")}
+function normalise(t){return String(t || "").trim().toLowerCase().normalize("NFC").replace(/\s+/g," ").replace(/[’‘`´]/g,"'");}
 
 function getMeaning(v){
-  const candidates = [
-    v,
-    v.replace(/'/g, "’"),
-    v.replace(/’/g, "'")
-  ];
+  const original = String(v || "").trim();
+  const base = original
+    .replace(/^se\s+/i, "")
+    .replace(/^s[’']/, "")
+    .replace(/[’]/g, "'")
+    .toLowerCase();
+
+  const candidates = Array.from(new Set([
+    original,
+    original.toLowerCase(),
+    original.replace(/'/g, "’"),
+    original.replace(/’/g, "'"),
+    base,
+    base.replace(/'/g, "’"),
+    base.replace(/’/g, "'")
+  ]));
 
   for(const item of candidates){
     if(typeof finalEnglishMeanings !== "undefined" && finalEnglishMeanings[item]) return finalEnglishMeanings[item];
     if(typeof englishMeanings !== "undefined" && englishMeanings[item]) return englishMeanings[item];
   }
 
-  if(v.startsWith("se ") || v.startsWith("s’") || v.startsWith("s'")) return "reflexive verb";
-  return "French verb";
+  if(original.startsWith("se ")){
+    const inner = getMeaning(base);
+    if(inner && inner !== "French verb") return "to " + inner.replace(/^to\s+/, "") + " oneself";
+    return "to do this to oneself / each other";
+  }
+  if(original.startsWith("s’") || original.startsWith("s'")){
+    const inner = getMeaning(base);
+    if(inner && inner !== "French verb") return "to " + inner.replace(/^to\s+/, "") + " oneself";
+    return "to do this to oneself / each other";
+  }
+
+  if(base.endsWith("er")) return "to " + base.slice(0, -2) + " (regular ER verb)";
+  if(base.endsWith("ir")) return "to " + base.slice(0, -2) + " (IR verb)";
+  if(base.endsWith("re")) return "to " + base.slice(0, -2) + " (RE verb)";
+  if(base.endsWith("oir")) return "to " + base.slice(0, -3) + " (OIR verb)";
+  return "meaning available during practice";
 }
 function groupOf(v){ if(v.startsWith("se ") || v.startsWith("s’") || v.startsWith("s\'")) return "reflexive"; if(v==="être"||v==="avoir"||pools.irregular.includes(v)) return "irregular"; if(v.endsWith("er"))return"er"; if(v.endsWith("ir"))return"ir"; if(v.endsWith("re"))return"re"; if(v.endsWith("oir"))return"oir"; return"unknown";}
 function ensureNonEmptyPool(pool){
@@ -2559,7 +2633,15 @@ function pastParticiple(v){
     if(overridePP) return overridePP;
     if(irregular[base]?.participe)return irregular[base].participe; const famPP = familyPastParticiple(base); if(famPP) return famPP; const advPP = advancedFamilyPP(base); if(advPP) return advPP; if(base.endsWith("er"))return base.slice(0,-2)+"é"; if(base.endsWith("ir"))return base.slice(0,-2)+"i"; if(base.endsWith("re"))return base.slice(0,-2)+"u"; return base;}
 function aux(v){ if(groupOf(v)==="reflexive") return "être"; return irregular[v]?.aux || (etreAux.includes(v) ? "être":"avoir"); }
-function futureStem(v){ if(irregular[v]?.futurStem)return irregular[v].futurStem; if(irregular[v]?.futur?.je)return irregular[v].futur.je.replace(/ai$/,""); if(v.endsWith("er"))return applyErFutureStem(v); if(v.endsWith("re"))return v.slice(0,-1); return v;}
+function futureStem(v){
+  if(irregular[v]?.futurStem) return irregular[v].futurStem;
+  if(irregular[v]?.futur?.je) return irregular[v].futur.je.replace(/ai$/,"");
+  if(v.endsWith("indre")) return v.slice(0,-2) + "r";
+  if(v.endsWith("er")) return applyErFutureStem(v);
+  if(v.endsWith("re")) return v.slice(0,-1);
+  return v;
+}
+
 
 function applyErPresentStemChange(infinitive, stem, p){
   // Stem changes apply to je, tu, il/elle/on and ils/elles in the present and subjunctive.
@@ -2709,12 +2791,12 @@ function specificFutureConditionalOverride(v, tense, p){
   const condEnd = {"je":"ais","tu":"ais","il/elle/on":"ait","nous":"ions","vous":"iez","ils/elles":"aient"};
 
   if(base.endsWith("indre")){
-    const stem = base.slice(0, -2); // atteindre -> atteindr-
+    const stem = base.slice(0, -2) + "r"; // atteindre -> atteindr-
     return stem + (tense === "futur" ? futEnd[p] : condEnd[p]);
   }
 
   if(base.endsWith("joindre")){
-    const stem = base.slice(0, -2);
+    const stem = base.slice(0, -2) + "r";
     return stem + (tense === "futur" ? futEnd[p] : condEnd[p]);
   }
 
@@ -2999,8 +3081,8 @@ function advancedFamilyForm(v, tense, p){
     }
     if(tense==="imparfait") return attach(data[3].replace(/ons$/,"") + endImp[p]);
     if(tense==="passeSimple") return attach(base.slice(0,-2)+"i" + endPS[p]);
-    if(tense==="futur") return attach(base.slice(0, -2) + endFut[p]);
-    if(tense==="conditionnel") return attach(base.slice(0, -2) + endCond[p]);
+    if(tense==="futur") return attach(base + endFut[p]);
+    if(tense==="conditionnel") return attach(base + endCond[p]);
   }
 
   if(base.endsWith("crire") && idx !== undefined){
@@ -3048,8 +3130,8 @@ function advancedFamilyForm(v, tense, p){
     if(tense==="subjonctif") return attach(subj[idx]);
     if(tense==="imparfait") return attach(stem+"ign" + endImp[p]);
     if(tense==="passeSimple") return attach(stem+"igni" + endPS[p]);
-    if(tense==="futur") return attach(base.slice(0, -2) + endFut[p]);
-    if(tense==="conditionnel") return attach(base.slice(0, -2) + endCond[p]);
+    if(tense==="futur") return attach(base.slice(0, -2) + "r" + endFut[p]);
+    if(tense==="conditionnel") return attach(base.slice(0, -2) + "r" + endCond[p]);
   }
 
   if(base==="prévoir" && idx !== undefined){
@@ -3244,24 +3326,23 @@ function useCustomVerb(){
   newQuestion();
 }
 
-function msg(t,c){const f=document.getElementById("feedback"); f.className="feedback "+c; f.textContent=t;}
+function msg(t,c){const f=document.getElementById("feedback"); if(!f) return; f.className="feedback "+c; f.textContent=t;}
 function checkAnswer(){
   if(questionLocked) return;
 
-  const input=document.getElementById("answer").value;
-  if(!input.trim())return;
+  const answerElement = document.getElementById("answer");
+  const input = answerElement ? answerElement.value : "";
+  if(!input.trim()) return;
 
-  if(currentQuestion.answer==="This form is not available from the verified conjugation database"){
-    msg("This form is not available from the verified conjugation database. The app will choose another question.", "wrong");
+  if(currentQuestion.answer === "This form is not available from the verified conjugation database"){
+    msg("This form is not available from the verified conjugation database. Press Skip for another question.", "wrong");
     questionLocked = true;
-    document.getElementById("answer").value="";
-    setTimeout(newQuestion,600);
     return;
   }
 
   attempts++;
 
-  if(normalise(input)===normalise(currentQuestion.answer)){
+  if(normalise(input) === normalise(currentQuestion.answer)){
     questionLocked = true;
     streak++;
     score++;
@@ -3272,23 +3353,23 @@ function checkAnswer(){
     }
 
     floodCorrectEmojis();
-    msg(randomItem(correctEmojis)+" "+randomItem(praise)+" "+randomItem(correctEmojis)+" Correct: "+currentQuestion.answer,"correct");
-    document.getElementById("answer").value="";
+    msg((randomItem(correctEmojis) || "✅") + " " + (randomItem(praise) || "Correct!") + " " + (randomItem(correctEmojis) || "✅") + " Correct: " + currentQuestion.answer, "correct");
+    if(answerElement) answerElement.value = "";
     updateScore();
     updateOnlineLeaderboard();
     updatePersonalBestStreak();
-    setTimeout(newQuestion,650);
+    setTimeout(newQuestion, 650);
   } else {
     questionLocked = true;
-    streak=0;
+    streak = 0;
     playWrongSound();
     floodWrongEmojis();
-    msg(randomItem(wrongEmojis)+" "+randomItem(tryAgain)+" "+randomItem(wrongEmojis)+" Correct answer: "+currentQuestion.answer,"wrong");
-    document.getElementById("answer").value="";
+    msg((randomItem(wrongEmojis) || "🤔") + " " + (randomItem(tryAgain) || "Have another look.") + " Correct answer: " + currentQuestion.answer + "  |  Press Skip for a new verb.", "wrong");
     updateScore();
     updateOnlineLeaderboard();
     updatePersonalBestStreak();
-    setTimeout(newQuestion,850);
+    // Do not automatically move to the next verb after a wrong answer.
+    // The student should have time to read the correction. They can press Skip.
   }
 }
 
