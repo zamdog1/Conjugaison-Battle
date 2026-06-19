@@ -337,33 +337,32 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js">
 
-function safeCategoryChanged(){
-  try {
-    questionLocked = false;
-    const answerBox = document.getElementById("answer");
-    if(answerBox) answerBox.value = "";
-    newQuestion();
-  } catch(error) {
-    console.warn("Category change recovered from error:", error);
-    const pool = ensureNonEmptyPool([]);
-    const fallbackVerb = pool[0];
-    currentQuestion = {
-      verb: fallbackVerb.inf || fallbackVerb.verb || "finir",
-      person: "je",
-      tense: "présent",
-      answer: "finis"
-    };
-    const prompt = document.getElementById("prompt");
-    if(prompt) prompt.textContent = "je / finir / présent";
-  }
-}
-
-document.addEventListener("change", function(event){
-  const id = event.target && event.target.id ? event.target.id.toLowerCase() : "";
-  if(id.includes("category") || id.includes("group") || id.includes("verbcategory") || id.includes("verb-category")){
-    safeCategoryChanged();
-  }
-}, true);
+document.addEventListener("DOMContentLoaded", function(){
+  const possibleStartButtons = Array.from(document.querySelectorAll("button, input[type='button'], input[type='submit']"));
+  possibleStartButtons.forEach(function(btn){
+    const text = (btn.textContent || btn.value || "").toLowerCase();
+    if(text.includes("start")){
+      btn.addEventListener("click", function(){
+        setTimeout(function(){
+          const gameArea = document.getElementById("gameArea") || document.getElementById("game") || document.getElementById("playArea");
+          const startArea = document.getElementById("startArea") || document.getElementById("startScreen") || document.getElementById("nameScreen");
+          // If the original click did nothing and a startActivity function exists, call it.
+          try {
+            if(typeof startActivity === "function"){
+              startActivity();
+            } else if(typeof startGame === "function"){
+              startGame();
+            } else if(typeof beginGame === "function"){
+              beginGame();
+            }
+          } catch(error) {
+            console.warn("Start button recovery attempted:", error);
+          }
+        }, 50);
+      });
+    }
+  });
+});
 
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
@@ -2429,7 +2428,6 @@ function connectOnlineLeaderboard(){
 function ensureNonEmptyPool(pool){
   if(Array.isArray(pool) && pool.length > 0) return pool;
 
-  // Fallbacks used when a category is empty, unavailable or still loading.
   if(typeof verbs !== "undefined" && Array.isArray(verbs) && verbs.length > 0) return verbs;
   if(typeof VERBS !== "undefined" && Array.isArray(VERBS) && VERBS.length > 0) return VERBS;
   if(typeof allVerbs !== "undefined" && Array.isArray(allVerbs) && allVerbs.length > 0) return allVerbs;
@@ -2444,15 +2442,7 @@ function ensureNonEmptyPool(pool){
   ];
 }
 
-function showCategoryFallbackMessage(categoryName){
-  const message = document.getElementById("message");
-  if(message){
-    message.className = "msg wrong";
-    message.textContent = "This category is loading or has no available verbs yet. The app has chosen another available verb.";
-  }
-}
-
-function selectedPoolOriginal(){const c=document.getElementById("category").value; if(c==="all")return getVerifiedAllVerbs(); if(c==="reoir")return [...pools.re,...pools.oir]; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="irregular")return pools.irregular; if(c==="reflexive")return reflexiveVerbs; return pools[c];}
+function selectedPool(){const c=document.getElementById("category").value; if(c==="all")return getVerifiedAllVerbs(); if(c==="reoir")return [...pools.re,...pools.oir]; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="erIrregular")return erIrregularVerbs; if(c==="irIrregular")return irIrregularVerbs; if(c==="oirIrregular")return oirIrregularVerbs; if(c==="irregular")return pools.irregular; if(c==="reflexive")return reflexiveVerbs; return pools[c];}
 function groupDisplay(v){const g=groupOf(v); if(g==="er")return"ER"; if(g==="ir")return"IR"; if(g==="re")return"RE"; if(g==="oir")return"OIR"; if(g==="reflexive") return "Reflexive"; return"Irregular";}
 function stemForImparfait(v){ if(irregular[v]?.present?.nous) return irregular[v].present.nous.replace(/ons$/,""); if(v.endsWith("er")){let s=v.slice(0,-2); if(v.endsWith("ger"))return s+"e"; if(v.endsWith("cer"))return s.slice(0,-1)+"ç"; return s;} if(v.endsWith("ir"))return v.slice(0,-2)+"iss"; if(v.endsWith("re"))return v.slice(0,-2)+"d"; return v;}
 function stripReflexive(v){
@@ -3205,18 +3195,6 @@ function getVerifiedConjugationAnswer(v, tense, p){
 }
 
 
-
-function selectedPool(){
-  let pool = [];
-  try {
-    pool = selectedPoolOriginal();
-  } catch(error) {
-    console.warn("selectedPool error:", error);
-    pool = [];
-  }
-  return ensureNonEmptyPool(pool);
-}
-
 function answerFor(v, tense, p){
   // Verified first. If the online database is loaded, use it as the source of truth.
   const verifiedAnswer = getVerifiedConjugationAnswer(v, tense, p);
@@ -3249,7 +3227,7 @@ function makeQuestion(){
  }
 
  let customMode = document.getElementById("mode").value==="custom" && customVerb;
- let v = customMode ? customVerb : randomItem(selectedPool());
+ let v = customMode ? customVerb : randomItem(ensureNonEmptyPool(selectedPool()));
  let p = tense==="imperatif" ? randomItem(imperatifs) : ((tense.startsWith("infinitif") || tense==="participes") ? "form" : randomItem(pronouns));
 
  if(["falloir","pleuvoir"].includes(v) && !(tense==="imperatif" || tense.startsWith("infinitif") || tense==="participes")) {
@@ -3261,7 +3239,7 @@ function makeQuestion(){
  // In random mode, never show an unsupported form. Keep trying within the selected category.
  let tries = 0;
  while(!a && tries < 200 && !customMode){
-   v = randomItem(selectedPool());
+   v = randomItem(ensureNonEmptyPool(selectedPool()));
    if(document.getElementById("tense").value==="randomTense"){
      tense = randomItem(quizTenses);
    }
@@ -3318,7 +3296,6 @@ window.normalise = normalise;
 
 function randomItem(list){
   if(!Array.isArray(list) || list.length === 0){
-    console.warn("Empty or unavailable list passed to randomItem. Falling back safely.");
     return null;
   }
   return list[Math.floor(Math.random() * list.length)];
