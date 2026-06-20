@@ -2092,6 +2092,8 @@ function loadPersonalBestStreak(name){
   showRecord(null);
   const localEntry = getLocalLeaderboard().find(function(entry){ return cleanStudentKey(entry.name || "") === cleanStudentKey(name); });
   if(localEntry) showRecord(localEntry);
+  const storedPersonal = readPersonalBest(name);
+  if(storedPersonal) showRecord(storedPersonal);
   if(leaderboardRef){
     leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){
       const data = snapshot.val();
@@ -2104,31 +2106,52 @@ function loadPersonalBestStreak(name){
 }
 
 
+function personalBestStorageKey(name){
+  return "conjugaisonBattlePersonalBest:" + cleanStudentKey(name);
+}
+function readPersonalBest(name){
+  try { return JSON.parse(localStorage.getItem(personalBestStorageKey(name)) || "null"); }
+  catch(e){ return null; }
+}
+function writePersonalBest(name, data){
+  try { localStorage.setItem(personalBestStorageKey(name), JSON.stringify(data)); }
+  catch(e) {}
+}
 function updatePersonalBestStreak(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
+  const oldLocal = readPersonalBest(name) || {};
+  const oldBest = Number(oldLocal.bestStreak || 0);
+  const newBest = Math.max(oldBest, Number(streak || 0));
+  const bestTime = (Number(streak || 0) > oldBest)
+    ? getCurrentPlayTimeText()
+    : (oldLocal.bestStreakTime || getCurrentPlayTimeText());
+  const bestSeconds = (Number(streak || 0) > oldBest)
+    ? (currentPlaySeconds || 0)
+    : Number(oldLocal.bestStreakSeconds || 0);
+  const personal = {bestStreak:newBest, bestStreakTime:bestTime, bestStreakSeconds:bestSeconds};
+  writePersonalBest(name, personal);
+
   const display = document.getElementById("personalBestStreakDisplay");
   if(display){
-    display.textContent = "Your best streak so far: " + Math.max(streak, 0) + " 🔥  |  Time played: " + getCurrentPlayTimeText();
+    display.textContent = "Your best streak so far: " + newBest + " 🔥  |  Time played: " + bestTime;
     display.classList.remove("hidden");
   }
-  const update = {bestStreak: streak, bestStreakSeconds: currentPlaySeconds || 0, bestStreakTime: getCurrentPlayTimeText()};
-  saveStudentRecordRest(name, update).catch(function(){});
-  if(!leaderboardRef) return;
-  const studentRef = leaderboardRef.child(cleanStudentKey(name));
-  studentRef.once("value").then(function(snapshot){
-    const old = snapshot.val() || {};
-    const oldBest = old.bestStreak || old.streak || 0;
-    if(streak > oldBest){
-      studentRef.update(update);
-      if(display) display.textContent = "New personal best streak: " + streak + " 🔥  |  Time played: " + getCurrentPlayTimeText();
-    } else if(display){
-      const shownTime = old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
-      display.textContent = "Your best streak so far: " + oldBest + " 🔥  |  Time played: " + shownTime;
-    }
-  }).catch(function(){});
-}
 
+  // Never PATCH a smaller current streak over a saved personal best.
+  if(Number(streak || 0) > oldBest){
+    saveStudentRecordRest(name, personal).catch(function(){});
+    if(leaderboardRef){
+      leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){
+        const remote = snapshot.val() || {};
+        const remoteBest = Number(remote.bestStreak || remote.streak || 0);
+        if(newBest > remoteBest){
+          return leaderboardRef.child(cleanStudentKey(name)).update(personal);
+        }
+      }).catch(function(){});
+    }
+  }
+}
 
 function updateOnlineLeaderboard(){
   saveLocalLeaderboardEntry();
@@ -2430,6 +2453,22 @@ const LOCAL_CATEGORY_FILES = [
   "verbs-reflexive.json"
 ];
 
+const CLASSROOM_EXCLUDED_VERBS = new Set([
+  "r'être","re-être","r'ouvrir","ré-ouvrir","carder","webdiffuser","ddosser","ocriser","pdfiser",
+  "copier-coller","couper-coller","vibe-coder","fact-checker","binge-watcher","cross-compiler","pair-programmer"
+]);
+function isClassroomSafeLocalRecord(record){
+  if(!record || !record.verb || !record.meaning) return false;
+  const verb = normalise(record.verb);
+  const meaning = normalise(record.meaning);
+  if(CLASSROOM_EXCLUDED_VERBS.has(verb)) return false;
+  if(/[A-Z]/.test(String(record.verb)) || /[-]/.test(String(record.verb))) return false;
+  if(verb.includes("'") && !(verb.startsWith("s'") || verb.startsWith("se "))) return false;
+  if(verb.includes(" ") && !(verb.startsWith("s'") || verb.startsWith("se "))) return false;
+  if(/\b(to rebe|to card|to ddos|to ocr|to pdf|to vibe)\b/.test(meaning)) return false;
+  return true;
+}
+
 function localPoolFor(menuCategory){
   const records = Object.values(localVerbData);
   if(!records.length) return [];
@@ -2469,7 +2508,7 @@ async function loadLocalVerbDatabase(){
     responses.forEach(function(payload){
       (payload.verbs || []).forEach(function(record){
         const key = normalise(record.verb);
-        if(key && record && record.forms && record.meaning){
+        if(key && record && record.forms && record.meaning && isClassroomSafeLocalRecord(record)){
           localVerbData[key] = record;
           localEnglishMeanings[key] = record.meaning;
           localVerbIndex[key] = record.category;
@@ -2478,7 +2517,7 @@ async function loadLocalVerbDatabase(){
     });
     localDatabaseReady = Object.keys(localVerbData).length > 0;
     if(!localDatabaseReady) throw new Error("No usable local verb records were found.");
-    if(status) status.textContent = "Local classroom database loaded: " + Object.keys(localVerbData).length.toLocaleString() + " translated verbs.";
+    if(status) status.textContent = "Local v59 classroom database loaded: " + Object.keys(localVerbData).length.toLocaleString() + " translated verbs.";
     updateVerbPool();
     const startScreen = document.getElementById("startScreen");
     if(startScreen && startScreen.classList && startScreen.classList.contains("hidden")) newQuestion();
@@ -2581,7 +2620,6 @@ function selectedPool(){
   const c = el ? el.value : "all";
   const local = localPoolFor(c);
   if(local.length) return ensureNonEmptyPool(local);
-
   let pool = [];
   try {
     if(c === "all") pool = getVerifiedAllVerbs();
@@ -2594,6 +2632,28 @@ function selectedPool(){
     else pool = pools[c];
   } catch(error) { pool = []; }
   return ensureNonEmptyPool(pool);
+}
+
+function randomVerbForCurrentCategory(){
+  const categoryEl = document.getElementById("category");
+  const c = categoryEl ? categoryEl.value : "all";
+  // Do not choose from one giant list for “All verbs”: ER entries are much more
+  // numerous. First choose a non-empty verb TYPE, then choose a verb within it.
+  if(c === "all" && localDatabaseReady){
+    const buckets = [
+      localPoolFor("er"),
+      localPoolFor("ir"),
+      localPoolFor("reoir"),
+      localPoolFor("irregular"),
+      localPoolFor("reflexive")
+    ].filter(function(bucket){ return Array.isArray(bucket) && bucket.length; });
+    if(buckets.length){
+      const selectedBucket = randomItem(buckets);
+      return randomItem(selectedBucket) || selectedBucket[0];
+    }
+  }
+  const pool = ensureNonEmptyPool(selectedPool());
+  return randomItem(pool) || pool[0] || "parler";
 }
 
 function groupDisplay(v){
@@ -3396,14 +3456,14 @@ function makeQuestion(){
   if(tense === "randomTense") tense = randomItem(quizTenses) || "present";
   const customMode = modeEl && modeEl.value === "custom" && customVerb;
   let pool = ensureNonEmptyPool(selectedPool());
-  let v = customMode ? customVerb : (randomItem(pool) || pool[0] || "parler");
+  let v = customMode ? customVerb : randomVerbForCurrentCategory();
   let p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
   if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
   let a = answerFor(v, tense, p);
   let tries = 0;
   while(!a && tries < 200 && !customMode){
     pool = ensureNonEmptyPool(selectedPool());
-    v = randomItem(pool) || pool[0] || "parler";
+    v = randomVerbForCurrentCategory();
     if(tenseEl && tenseEl.value === "randomTense") tense = randomItem(quizTenses) || "present";
     p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
     if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
@@ -3510,7 +3570,10 @@ function updateVerbPool(){
   const poolBox = document.getElementById("verbPool");
   if(!poolBox) return;
   const pool = ensureNonEmptyPool(selectedPool());
-  poolBox.innerHTML = pool.map(function(v){ return `<span class="pill">${v} — ${getMeaning(v)}</span>`; }).join("");
+  poolBox.textContent = "";
+  const fragment = document.createDocumentFragment();
+  pool.forEach(function(v){ const pill=document.createElement("span"); pill.className="pill"; pill.textContent = v + " — " + getMeaning(v); fragment.appendChild(pill); });
+  poolBox.appendChild(fragment);
 }
 
 ["category","tense","mode"].forEach(function(id){

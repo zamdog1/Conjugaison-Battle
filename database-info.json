@@ -1,15 +1,16 @@
 {
-  "count": 3794,
-  "source": "French Wiktionary / Kaikki data supplied by user; v58 classroom-frequency filter",
-  "categories": {
-    "er_regular": 3092,
-    "ir_regular": 175,
-    "re_regular": 184,
-    "oir_other": 0,
-    "er_irregular": 4,
-    "ir_irregular": 72,
+  "version": "v59",
+  "description": "Classroom-filtered French verb database. Excludes malformed, hyphenated, acronym-like and obvious technical/coinage entries.",
+  "count": 3704,
+  "counts": {
+    "er_irregular": 3,
+    "er_regular": 3016,
+    "ir_irregular": 71,
+    "ir_regular": 174,
     "oir_irregular": 26,
-    "reflexive": 241
+    "re_regular": 176,
+    "reflexive": 238
   },
-  "filter": "Excluded digital coinages, abbreviations, supplied exclusions, and low-frequency non-core entries. The v55 classroom pool is retained."
+  "excludedCount": 90,
+  "translationNote": "Meanings are retained from the supplied bilingual dictionary data. Known wrong/unsuitable entries are excluded; this package does not claim a human line-by-line semantic review of every retained sense."
 }

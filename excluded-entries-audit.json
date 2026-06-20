@@ -1,0 +1,452 @@
+[
+  {
+    "verb": "copier-coller",
+    "meaning": "to copy and paste / to copy-paste",
+    "from": "verbs-er-irregular.json"
+  },
+  {
+    "verb": "alpha-tester",
+    "meaning": "to alpha test",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "arc-bouter",
+    "meaning": "to buttress / to stonewall",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "archi-simplifier",
+    "meaning": "to ultrasimplify",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "auto-amorcer",
+    "meaning": "to bootstrap",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "auto-financer",
+    "meaning": "to self-finance",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "auto-formater",
+    "meaning": "to autoformat",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "auto-signer",
+    "meaning": "to autosign",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "binge-watcher",
+    "meaning": "to binge-watch",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "bêta-tester",
+    "meaning": "to beta test",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "carter",
+    "meaning": "to card",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "co-développer",
+    "meaning": "to codevelop / to co-develop",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "co-opter",
+    "meaning": "to co-opt",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "co-signer",
+    "meaning": "to cosign",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "contre-attaquer",
+    "meaning": "to counterattack / to strike back",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "contre-indiquer",
+    "meaning": "to contraindicate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "contre-interroger",
+    "meaning": "to counter-interrogate / to cross-examine",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "contre-ordonner",
+    "meaning": "to countermand",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "contre-vérifier",
+    "meaning": "to countercheck",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "couper-coller",
+    "meaning": "to cut and paste",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "court-circuiter",
+    "meaning": "to shunt / to short circuit / to bypass",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "cross-compiler",
+    "meaning": "to cross-compile",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "double-cliquer",
+    "meaning": "to double-click",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "dé-cartographier",
+    "meaning": "to unmap",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "dé-follower",
+    "meaning": "to unfollow",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "dé-sexualiser",
+    "meaning": "to desexualise / to desexualize",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "fact-checker",
+    "meaning": "to fact check",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "hacker",
+    "meaning": "to hack",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "hyper-médiatiser",
+    "meaning": "to hypermediatize / to hyper-mediatize / to hypermediatise",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "hyper-ventiler",
+    "meaning": "to hyperventilate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "immuno-précipiter",
+    "meaning": "to immunoprecipitate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "insurger",
+    "meaning": "to rise up / to rebel",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "love bomber",
+    "meaning": "to love-bomb / to love bomb",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "marque-pager",
+    "meaning": "to bookmark",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "micro-onder",
+    "meaning": "to microwave",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "micro-perforer",
+    "meaning": "to micro-perforate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pair-programmer",
+    "meaning": "to pair program",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "petit-déjeuner",
+    "meaning": "to breakfast",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pique-niquer",
+    "meaning": "to picnic",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-allouer",
+    "meaning": "to preallocate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-assigner",
+    "meaning": "to preassign",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-authentifier",
+    "meaning": "to preauthenticate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-configurer",
+    "meaning": "to preconfigure / to preset",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-mélanger",
+    "meaning": "to premix / to preblend",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-payer",
+    "meaning": "to prepay",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "pré-purifier",
+    "meaning": "to pre-purify",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "ré-approprier",
+    "meaning": "to reappropriate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "ré-armer",
+    "meaning": "to rearm",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-ajuster",
+    "meaning": "to underfit",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-alimenter",
+    "meaning": "to underfeed",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-catégoriser",
+    "meaning": "to subcategorize",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-diagnostiquer",
+    "meaning": "to underdiagnose",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-doter",
+    "meaning": "to under-endow",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-développer",
+    "meaning": "to underdevelop",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-estimer",
+    "meaning": "to underestimate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-exposer",
+    "meaning": "to underexpose / to underpromote",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-facturer",
+    "meaning": "to underbill",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-financer",
+    "meaning": "to underfunded",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-indexer",
+    "meaning": "to subindex",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-jouer",
+    "meaning": "to slowplay",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-licencier",
+    "meaning": "to sublicense / to sublicence",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-louer",
+    "meaning": "to sublet / to sublease",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-partitionner",
+    "meaning": "to subpartition",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-payer",
+    "meaning": "to underpay",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-performer",
+    "meaning": "to underperform",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-représenter",
+    "meaning": "to underrepresent",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-titrer",
+    "meaning": "to subtitle",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-traiter",
+    "meaning": "to outsource",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-typer",
+    "meaning": "to subtype",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-utiliser",
+    "meaning": "to underuse",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sous-évaluer",
+    "meaning": "to undervalue / to underestimate",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sur-catégoriser",
+    "meaning": "to overcategorize",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sur-titrer",
+    "meaning": "to surtitle",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "sur-utiliser",
+    "meaning": "to overuse",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "ultra-simplifier",
+    "meaning": "to ultrasimplify",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "vert-de-griser",
+    "meaning": "to verdigris",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "vibe-coder",
+    "meaning": "to vibecode",
+    "from": "verbs-er-regular.json"
+  },
+  {
+    "verb": "r'ouvrir",
+    "meaning": "to reopen",
+    "from": "verbs-ir-irregular.json"
+  },
+  {
+    "verb": "ré-ouvrir",
+    "meaning": "to reopen",
+    "from": "verbs-ir-regular.json"
+  },
+  {
+    "verb": "co-écrire",
+    "meaning": "to co-write",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "r'être",
+    "meaning": "to rebe",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "re-être",
+    "meaning": "to rebe",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "sous-entendre",
+    "meaning": "to imply",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "sous-produire",
+    "meaning": "to underproduce",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "sous-tendre",
+    "meaning": "to subtend / to underlie",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "sous-vendre",
+    "meaning": "to undersell",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "sur-apprendre",
+    "meaning": "to overlearn",
+    "from": "verbs-re-regular.json"
+  },
+  {
+    "verb": "s'auto-détruire",
+    "meaning": "to self-destroy / to self-destruct",
+    "from": "verbs-reflexive.json"
+  },
+  {
+    "verb": "s'auto-mutiler",
+    "meaning": "to selfharm / to self harm / to self-harm",
+    "from": "verbs-reflexive.json"
+  },
+  {
+    "verb": "s'entre-reprocher",
+    "meaning": "to reproach each other",
+    "from": "verbs-reflexive.json"
+  }
+]
