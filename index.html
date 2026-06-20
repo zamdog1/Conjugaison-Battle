@@ -2634,24 +2634,45 @@ function selectedPool(){
   return ensureNonEmptyPool(pool);
 }
 
+// Tracks the previous broad verb type used while "All verbs" is selected.
+// This prevents two consecutive questions from coming from the same type.
+let lastAllVerbBucketKey = null;
+
 function randomVerbForCurrentCategory(){
   const categoryEl = document.getElementById("category");
   const c = categoryEl ? categoryEl.value : "all";
-  // Do not choose from one giant list for “All verbs”: ER entries are much more
-  // numerous. First choose a non-empty verb TYPE, then choose a verb within it.
+
+  // For "All verbs", first choose a TYPE and then a verb from that type.
+  // The next question must use a different type from the previous question.
   if(c === "all" && localDatabaseReady){
     const buckets = [
-      localPoolFor("er"),
-      localPoolFor("ir"),
-      localPoolFor("reoir"),
-      localPoolFor("irregular"),
-      localPoolFor("reflexive")
-    ].filter(function(bucket){ return Array.isArray(bucket) && bucket.length; });
+      { key: "er",        verbs: localPoolFor("er") },
+      { key: "ir",        verbs: localPoolFor("ir") },
+      { key: "reoir",     verbs: localPoolFor("reoir") },
+      { key: "irregular", verbs: localPoolFor("irregular") },
+      { key: "reflexive", verbs: localPoolFor("reflexive") }
+    ].filter(function(bucket){
+      return Array.isArray(bucket.verbs) && bucket.verbs.length;
+    });
+
     if(buckets.length){
-      const selectedBucket = randomItem(buckets);
-      return randomItem(selectedBucket) || selectedBucket[0];
+      let choices = buckets.filter(function(bucket){
+        return bucket.key !== lastAllVerbBucketKey;
+      });
+
+      // Safety fallback only if there is one usable type available.
+      if(!choices.length) choices = buckets;
+
+      const selectedBucket = randomItem(choices) || choices[0];
+      lastAllVerbBucketKey = selectedBucket.key;
+
+      return randomItem(selectedBucket.verbs) || selectedBucket.verbs[0];
     }
   }
+
+  // Leaving "All verbs" resets the alternating-category memory.
+  lastAllVerbBucketKey = null;
+
   const pool = ensureNonEmptyPool(selectedPool());
   return randomItem(pool) || pool[0] || "parler";
 }
@@ -3582,6 +3603,7 @@ function updateVerbPool(){
     el.addEventListener("change", function(){
       if(id === "category"){
         customVerb = null;
+        lastAllVerbBucketKey = null;
         const mode = document.getElementById("mode");
         if(mode) mode.value = "random";
       }

@@ -1,5 +1,5 @@
 {
-  "version": "v59",
+  "version": "v60",
   "description": "Classroom-filtered French verb database. Excludes malformed, hyphenated, acronym-like and obvious technical/coinage entries.",
   "count": 3704,
   "counts": {
@@ -12,5 +12,6 @@
     "reflexive": 238
   },
   "excludedCount": 90,
-  "translationNote": "Meanings are retained from the supplied bilingual dictionary data. Known wrong/unsuitable entries are excluded; this package does not claim a human line-by-line semantic review of every retained sense."
+  "translationNote": "Meanings are retained from the supplied bilingual dictionary data. Known wrong/unsuitable entries are excluded; this package does not claim a human line-by-line semantic review of every retained sense.",
+  "all_verbs_selection": "When All verbs is selected, the next question is always drawn from a different broad category than the previous question."
 }
