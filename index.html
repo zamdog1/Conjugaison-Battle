@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Conjugaison Battle v49</title>
+<title>Conjugaison Battle — 5,563 verified translated verbs</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#eff6ff,#f0fdf4);color:#1e293b;min-height:100vh;padding:24px}
 .container{max-width:1180px;margin:0 auto} header{text-align:center;margin-bottom:22px} .badge{display:inline-block;background:white;padding:8px 14px;border-radius:999px;box-shadow:0 2px 8px #0001;font-size:14px;margin-bottom:10px}
@@ -311,7 +311,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <button onclick="useCustomVerb()">Use verb</button><button class="warning" onclick="resetGame()">Reset</button>
 </div>
 <div class="row" style="margin-bottom:12px"><button class="secondary" onclick="toggleSound()" id="soundButton">🔊 Sound: ON</button></div>
-<div class="feedback info">Verified-only version: all verb pools and features are kept. The app uses Lefff/french-verbs conjugation data and skips unsupported forms instead of guessing. Reflexive compound forms use être and accept the standard masculine singular past participle form.</div>
+<div class="feedback info">Local verified-database version: 5,563 French verbs with dictionary English meanings and stored conjugation forms. The app loads its category JSON files from this folder.</div>
 <div class="question-box">
 <p>Conjugate this verb:</p><h2 id="verb">parler</h2>
 <div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">English meaning will appear here</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div>
@@ -2411,6 +2411,83 @@ function randomItem(arr){
 
 function normalise(t){return String(t || "").trim().toLowerCase().normalize("NFC").replace(/\s+/g," ").replace(/[’‘`´]/g,"'");}
 
+
+// ---- Local French Wiktionary / Kaikki database ----
+// This app package includes only verbs with both a dictionary English translation
+// and a complete stored set of classroom conjugation forms.
+let localVerbData = Object.create(null);
+let localEnglishMeanings = Object.create(null);
+let localVerbIndex = Object.create(null);
+let localDatabaseReady = false;
+const LOCAL_CATEGORY_FILES = [
+  "verbs-er-regular.json",
+  "verbs-ir-regular.json",
+  "verbs-re-regular.json",
+  "verbs-oir-other.json",
+  "verbs-er-irregular.json",
+  "verbs-ir-irregular.json",
+  "verbs-oir-irregular.json",
+  "verbs-reflexive.json"
+];
+
+function localPoolFor(menuCategory){
+  const records = Object.values(localVerbData);
+  if(!records.length) return [];
+  const has = function(c){ return records.filter(function(r){ return r.category === c; }).map(function(r){ return r.verb; }); };
+  if(menuCategory === "all") return records.map(function(r){ return r.verb; });
+  if(menuCategory === "er") return has("er_regular");
+  if(menuCategory === "ir") return has("ir_regular");
+  if(menuCategory === "reoir") return has("re_regular").concat(has("oir_other"));
+  if(menuCategory === "erIrregular") return has("er_irregular");
+  if(menuCategory === "irIrregular") return has("ir_irregular");
+  if(menuCategory === "oirIrregular") return has("oir_irregular");
+  if(menuCategory === "irregular") return has("er_irregular").concat(has("ir_irregular"),has("oir_irregular"));
+  if(menuCategory === "reflexive") return has("reflexive");
+  return [];
+}
+
+function localConjugationAnswer(v, tense, person){
+  const record = localVerbData[normalise(v)];
+  if(!record || !record.forms) return null;
+  const forms = record.forms;
+  if(tense === "participes") return forms.participes || null;
+  if(tense === "infinitifPasse") return forms.infinitifPasse || null;
+  if(tense === "imperatif") return (forms.imperatif && forms.imperatif[person]) || null;
+  return (forms[tense] && forms[tense][person]) || null;
+}
+
+async function loadLocalVerbDatabase(){
+  const status = document.getElementById("verifiedStatusDisplay");
+  try {
+    if(status) status.textContent = "Loading local verb database…";
+    const responses = await Promise.all(LOCAL_CATEGORY_FILES.map(function(file){
+      return fetch(file, {cache:"force-cache"}).then(function(r){
+        if(!r.ok) throw new Error(file+" ("+r.status+")");
+        return r.json();
+      });
+    }));
+    responses.forEach(function(payload){
+      (payload.verbs || []).forEach(function(record){
+        const key = normalise(record.verb);
+        if(key && record && record.forms && record.meaning){
+          localVerbData[key] = record;
+          localEnglishMeanings[key] = record.meaning;
+          localVerbIndex[key] = record.category;
+        }
+      });
+    });
+    localDatabaseReady = Object.keys(localVerbData).length > 0;
+    if(!localDatabaseReady) throw new Error("No usable local verb records were found.");
+    if(status) status.textContent = "Local verified database loaded: " + Object.keys(localVerbData).length.toLocaleString() + " translated verbs.";
+    updateVerbPool();
+    const startScreen = document.getElementById("startScreen");
+    if(startScreen && startScreen.classList && startScreen.classList.contains("hidden")) newQuestion();
+  } catch(error) {
+    console.warn("Local verb database could not be loaded; using the built-in v55 pool.", error);
+    if(status) status.textContent = "Local database unavailable. Using the built-in v55 pool.";
+  }
+}
+
 function getMeaning(v){
   let original = "";
   if(v && typeof v === "object"){
@@ -2421,6 +2498,9 @@ function getMeaning(v){
 
   original = original.trim();
   if(!original) return "English meaning unavailable";
+
+  const localKey = normalise(original);
+  if(localEnglishMeanings[localKey]) return localEnglishMeanings[localKey];
 
   const normalApostrophe = original.replace(/[’‘`´]/g, "'");
   const curlyApostrophe = original.replace(/['‘`´]/g, "’");
@@ -2499,6 +2579,9 @@ function ensureNonEmptyPool(pool){
 function selectedPool(){
   const el = document.getElementById("category");
   const c = el ? el.value : "all";
+  const local = localPoolFor(c);
+  if(local.length) return ensureNonEmptyPool(local);
+
   let pool = [];
   try {
     if(c === "all") pool = getVerifiedAllVerbs();
@@ -2513,7 +2596,16 @@ function selectedPool(){
   return ensureNonEmptyPool(pool);
 }
 
-function groupDisplay(v){const g=groupOf(v); if(g==="er")return"ER"; if(g==="ir")return"IR"; if(g==="re")return"RE"; if(g==="oir")return"OIR"; if(g==="reflexive") return "Reflexive"; return"Irregular";}
+function groupDisplay(v){
+  const local = localVerbIndex[normalise(v)];
+  if(local === "er_regular") return "ER";
+  if(local === "ir_regular") return "IR";
+  if(local === "re_regular") return "RE";
+  if(local === "oir_other" || local === "oir_irregular") return "OIR";
+  if(local === "reflexive") return "Reflexive";
+  if(local && local.indexOf("irregular") !== -1) return "Irregular";
+  const g=groupOf(v); if(g==="er")return"ER"; if(g==="ir")return"IR"; if(g==="re")return"RE"; if(g==="oir")return"OIR"; if(g==="reflexive") return "Reflexive"; return"Irregular";
+}
 function stemForImparfait(v){ if(irregular[v]?.present?.nous) return irregular[v].present.nous.replace(/ons$/,""); if(v.endsWith("er")){let s=v.slice(0,-2); if(v.endsWith("ger"))return s+"e"; if(v.endsWith("cer"))return s.slice(0,-1)+"ç"; return s;} if(v.endsWith("ir"))return v.slice(0,-2)+"iss"; if(v.endsWith("re"))return v.slice(0,-2)+"d"; return v;}
 function stripReflexive(v){
     return v.replace(/^se\s+/,"").replace(/^s’/,"").replace(/^s\'/,"");
@@ -3274,12 +3366,12 @@ function getVerifiedConjugationAnswer(v, tense, p){
 
 
 function answerFor(v, tense, p){
-  // Verified first. If the online database is loaded, use it as the source of truth.
+  const localAnswer = localConjugationAnswer(v, tense, p);
+  if(localAnswer) return localAnswer;
+
+  // v55 compatibility fallback for the original classroom pool.
   const verifiedAnswer = getVerifiedConjugationAnswer(v, tense, p);
   if(verifiedAnswer) return verifiedAnswer;
-
-  // Fallback so the app does not freeze if the verified database is slow or blocked.
-  // This uses the built-in checked rules already included in the app.
   if(tense==="infinitifPresent")return v;
   if(tense==="participes"){
    const presPart = presentParticiple(v);
@@ -3354,13 +3446,15 @@ function newQuestion(){
 function useCustomVerb(){
   const input = document.getElementById("customVerb");
   const typed = normalise(input ? input.value : "").replace(/’/g,"'");
-  if(!typed || groupOf(typed) === "unknown"){
-    msg("Please type a French infinitive ending in ER, IR, RE or OIR, or a common irregular verb from the bank.","wrong");
+  const isLocal = !!localVerbData[typed];
+  const isExisting = groupOf(typed) !== "unknown";
+  if(!typed || (!isLocal && !isExisting)){
+    msg("This verb is not included in the local verified database.","wrong");
     return;
   }
   customVerb = typed;
-  const mode = document.getElementById("mode");
-  if(mode) mode.value = "custom";
+  const modeEl = document.getElementById("mode");
+  if(modeEl) modeEl.value = "custom";
   newQuestion();
 }
 
@@ -3436,6 +3530,7 @@ document.getElementById("answer").addEventListener("keydown",e=>{if(e.key==="Ent
 newQuestion();
 prepareStartScreen();
 connectOnlineLeaderboard();
+loadLocalVerbDatabase();
 
 setInterval(function(){
   try {
