@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Conjugaison Battle — 5,563 verified translated verbs</title>
+<title>Conjugaison Battle — Classroom French verb database</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#eff6ff,#f0fdf4);color:#1e293b;min-height:100vh;padding:24px}
 .container{max-width:1180px;margin:0 auto} header{text-align:center;margin-bottom:22px} .badge{display:inline-block;background:white;padding:8px 14px;border-radius:999px;box-shadow:0 2px 8px #0001;font-size:14px;margin-bottom:10px}
@@ -311,7 +311,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <button onclick="useCustomVerb()">Use verb</button><button class="warning" onclick="resetGame()">Reset</button>
 </div>
 <div class="row" style="margin-bottom:12px"><button class="secondary" onclick="toggleSound()" id="soundButton">🔊 Sound: ON</button></div>
-<div class="feedback info">Local verified-database version: 5,563 French verbs with dictionary English meanings and stored conjugation forms. The app loads its category JSON files from this folder.</div>
+<div class="feedback info">Classroom-filtered local database: natural, student-suitable verbs with English meanings and stored conjugation forms. Technical coinages, abbreviations and low-frequency non-core entries have been removed.</div>
 <div class="question-box">
 <p>Conjugate this verb:</p><h2 id="verb">parler</h2>
 <div class="details"><div class="detail"><small>Meaning</small><strong id="meaning">English meaning will appear here</strong></div><div class="detail"><small>Personne</small><strong id="pronoun">je</strong></div><div class="detail"><small>Tense</small><strong id="tenseDisplay">présent</strong></div><div class="detail"><small>Group</small><strong id="groupDisplay">ER</strong></div></div>
@@ -2478,7 +2478,7 @@ async function loadLocalVerbDatabase(){
     });
     localDatabaseReady = Object.keys(localVerbData).length > 0;
     if(!localDatabaseReady) throw new Error("No usable local verb records were found.");
-    if(status) status.textContent = "Local verified database loaded: " + Object.keys(localVerbData).length.toLocaleString() + " translated verbs.";
+    if(status) status.textContent = "Local classroom database loaded: " + Object.keys(localVerbData).length.toLocaleString() + " translated verbs.";
     updateVerbPool();
     const startScreen = document.getElementById("startScreen");
     if(startScreen && startScreen.classList && startScreen.classList.contains("hidden")) newQuestion();
