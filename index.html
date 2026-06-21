@@ -331,7 +331,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
 <section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For advanced tenses, ask students to say the auxiliary first, then the past participle. For spelling practice, they must type the whole phrase.</p></section>
 </aside>
-<div class="feedback info"><strong>Fresh leaderboard season:</strong> previous bugged records are not used in this version. New best streaks include the date achieved.</div></main>
+<div class="feedback info"><strong>Subject agreement:</strong> the app now asks separately for <em>il</em>, <em>elle</em>, <em>on</em>, <em>ils</em> and <em>elles</em>. Reflexive compound forms use the matching agreement: <em>elle s’est démasquée</em>, <em>ils se sont démasqués</em>, <em>elles se sont démasquées</em>.</div></main>
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
@@ -1847,7 +1847,33 @@ const finalEnglishMeanings = {
   "se plaindre": "to complain"
 };
 
-const pronouns = ["je","tu","il/elle/on","nous","vous","ils/elles"];
+const pronouns = ["je","tu","il","elle","on","nous","vous","ils","elles"];
+
+// The app now displays separate third-person subjects. Most French forms are
+// identical across these subjects, so this maps each displayed subject to the
+// existing form-table slot without losing gender information for agreement.
+function formPerson(person){
+  const map = {
+    "il": "il/elle/on",
+    "elle": "il/elle/on",
+    "on": "il/elle/on",
+    "ils": "ils/elles",
+    "elles": "ils/elles"
+  };
+  return map[person] || person;
+}
+
+function subjectAgreementProfile(person){
+  const profiles = {
+    "il":    { feminine:false, plural:false, fixed:true },
+    "elle":  { feminine:true,  plural:false, fixed:true },
+    "on":    { feminine:false, plural:false, fixed:true },
+    "ils":   { feminine:false, plural:true,  fixed:true },
+    "elles": { feminine:true,  plural:true,  fixed:true }
+  };
+  return profiles[person] || null;
+}
+
 const imperatifs = ["tu","nous","vous"];
 const praise = ["Magnifique!","Bravo!","Excellent!","Superbe!","Tu cartonnes!","Quel génie!"];
 const tryAgain = ["Presque!","Oups!","Essaie encore!","Pas loin!","Continue!"];
@@ -2513,14 +2539,179 @@ function localPoolFor(menuCategory){
   return [];
 }
 
+
+// ---- Reflexive-form repair layer ----
+// Imported dictionary records often store the active form only (for example
+// "a démasqué"). A reflexive verb must never use that active compound form.
+// These helpers build all reflexive answers directly from the base verb form.
+function isReflexiveVerbText(v){
+  const text = normalise(v);
+  return text.startsWith("se ") || text.startsWith("s'");
+}
+
+function reflexiveBaseVerb(v){
+  return normalise(v).replace(/^se\s+/, "").replace(/^s'/, "");
+}
+
+function reflexiveSubjectClitic(person, following){
+  const basePerson = formPerson(person);
+  const clitics = {
+    "je": "me",
+    "tu": "te",
+    "il/elle/on": "se",
+    "nous": "nous",
+    "vous": "vous",
+    "ils/elles": "se"
+  };
+  const clitic = clitics[basePerson] || "";
+  if(!clitic) return "";
+  return /^[aeiouyhàâäéèêëîïôöùûüœ]/i.test(String(following || "")) && ["me","te","se"].includes(clitic)
+    ? clitic.slice(0, -1) + "'"
+    : clitic + " ";
+}
+
+function reflexivePastParticiple(record){
+  const participes = String(record && record.forms && record.forms.participes || "");
+  const pieces = participes.split("/");
+  return normalise((pieces[1] || pieces[0] || "").trim());
+}
+
+function addReflexiveAgreement(pp, feminine, plural){
+  let form = String(pp || "").trim();
+  if(!form) return form;
+  if(feminine && !form.endsWith("e")) form += "e";
+  if(plural && !/[sxz]$/i.test(form)) form += "s";
+  return form;
+}
+
+function reflexiveCompoundAuxiliary(tense, person){
+  const table = {
+    "passeCompose": {
+      "je":"suis","tu":"es","il/elle/on":"est","nous":"sommes","vous":"êtes","ils/elles":"sont"
+    },
+    "plusQueParfait": {
+      "je":"étais","tu":"étais","il/elle/on":"était","nous":"étions","vous":"étiez","ils/elles":"étaient"
+    },
+    "passeAnterieur": {
+      "je":"fus","tu":"fus","il/elle/on":"fut","nous":"fûmes","vous":"fûtes","ils/elles":"furent"
+    },
+    "futurAnterieur": {
+      "je":"aurai","tu":"auras","il/elle/on":"aura","nous":"aurons","vous":"aurez","ils/elles":"auront"
+    },
+    "conditionnelPasse": {
+      "je":"aurais","tu":"aurais","il/elle/on":"aurait","nous":"aurions","vous":"auriez","ils/elles":"auraient"
+    }
+  };
+  const formKey = formPerson(person);
+  return table[tense] && table[tense][formKey] ? table[tense][formKey] : null;
+}
+
+function reflexiveCompoundVariants(record, tense, person){
+  const aux = reflexiveCompoundAuxiliary(tense, person);
+  const pp = reflexivePastParticiple(record);
+  if(!aux || !pp) return [];
+
+  const prefix = reflexiveSubjectClitic(person, aux) + aux + " ";
+  const profile = subjectAgreementProfile(person);
+
+  // Exact teaching answers when the displayed subject tells us the gender:
+  // elle -> -e, ils -> -s, elles -> -es.
+  if(profile && profile.fixed){
+    return [prefix + addReflexiveAgreement(pp, profile.feminine, profile.plural)];
+  }
+
+  // je, tu, nous and vous do not disclose gender in the prompt. Accept the
+  // grammatically possible agreement variants rather than marking one wrong.
+  let variants = [];
+  const basePerson = formPerson(person);
+  if(basePerson === "nous"){
+    variants = [
+      prefix + addReflexiveAgreement(pp, false, true),
+      prefix + addReflexiveAgreement(pp, true, true)
+    ];
+  } else if(basePerson === "vous"){
+    variants = [
+      prefix + addReflexiveAgreement(pp, false, false),
+      prefix + addReflexiveAgreement(pp, true, false),
+      prefix + addReflexiveAgreement(pp, false, true),
+      prefix + addReflexiveAgreement(pp, true, true)
+    ];
+  } else {
+    variants = [
+      prefix + addReflexiveAgreement(pp, false, false),
+      prefix + addReflexiveAgreement(pp, true, false)
+    ];
+  }
+  return Array.from(new Set(variants.filter(Boolean)));
+}
+
+function reflexiveImperative(record, person){
+  const basePerson = formPerson(person);
+  const core = record && record.forms && record.forms.imperatif && record.forms.imperatif[basePerson];
+  if(!core) return null;
+  const ending = {"tu":"toi","nous":"nous","vous":"vous"}[basePerson];
+  if(!ending) return null;
+  return String(core).trim() + "-" + ending;
+}
+
+function reflexiveSimpleForm(record, tense, person){
+  const formKey = formPerson(person);
+  const core = record && record.forms && record.forms[tense] && record.forms[tense][formKey];
+  if(!core) return null;
+  return reflexiveSubjectClitic(person, core) + String(core).trim();
+}
+
+function repairedReflexiveAnswer(record, tense, person){
+  if(!record || !record.forms) return null;
+
+  const compoundTenses = ["passeCompose","plusQueParfait","passeAnterieur","futurAnterieur","conditionnelPasse"];
+  if(compoundTenses.includes(tense)){
+    const variants = reflexiveCompoundVariants(record, tense, person);
+    return variants.length ? variants[0] : null;
+  }
+
+  if(tense === "infinitifPasse"){
+    const pp = reflexivePastParticiple(record);
+    return pp ? "s'être " + pp : null;
+  }
+
+  if(tense === "imperatif"){
+    return reflexiveImperative(record, person);
+  }
+
+  if(tense === "participes"){
+    const pp = reflexivePastParticiple(record);
+    const present = String(record.forms.participes || "").split("/")[0].trim();
+    return present && pp ? "se " + present + " / " + pp : null;
+  }
+
+  return reflexiveSimpleForm(record, tense, person);
+}
+
+function repairedReflexiveAcceptedAnswers(record, tense, person, fallbackAnswer){
+  const compoundTenses = ["passeCompose","plusQueParfait","passeAnterieur","futurAnterieur","conditionnelPasse"];
+  if(compoundTenses.includes(tense)){
+    const variants = reflexiveCompoundVariants(record, tense, person);
+    return variants.length ? variants : [fallbackAnswer];
+  }
+  return [fallbackAnswer];
+}
+
 function localConjugationAnswer(v, tense, person){
   const record = localVerbData[normalise(v)];
   if(!record || !record.forms) return null;
+
+  // Never trust active imported forms for a reflexive verb.
+  if(isReflexiveVerbText(record.verb)){
+    return repairedReflexiveAnswer(record, tense, person);
+  }
+
   const forms = record.forms;
+  const formKey = formPerson(person);
   if(tense === "participes") return forms.participes || null;
   if(tense === "infinitifPasse") return forms.infinitifPasse || null;
-  if(tense === "imperatif") return (forms.imperatif && forms.imperatif[person]) || null;
-  return (forms[tense] && forms[tense][person]) || null;
+  if(tense === "imperatif") return (forms.imperatif && forms.imperatif[formKey]) || null;
+  return (forms[tense] && forms[tense][formKey]) || null;
 }
 
 async function loadLocalVerbDatabase(){
@@ -3043,6 +3234,7 @@ function specificFutureConditionalOverride(v, tense, p){
 
 
 function simple(v, tense, p){
+ p = formPerson(p);
  const reflexive = groupOf(v)==="reflexive";
  if(reflexive){ v = stripReflexive(v); }
  if(irregular[v]?.[tense]?.[p]) {
@@ -3448,7 +3640,7 @@ function getVerifiedConjugationAnswer(v, tense, p){
     subjonctif: "SUBJONCTIF_PRESENT"
   };
 
-  const personMap = {"je":0,"tu":1,"il/elle/on":2,"nous":3,"vous":4,"ils/elles":5,"form":0,"infinitif":0};
+  const personMap = {"je":0,"tu":1,"il":2,"elle":2,"on":2,"il/elle/on":2,"nous":3,"vous":4,"ils":5,"elles":5,"ils/elles":5,"form":0,"infinitif":0};
   const isReflexive = groupOf(v) === "reflexive";
   const options = isReflexive ? { pronominal: true } : {};
 
@@ -3507,7 +3699,7 @@ function makeQuestion(){
   let pool = ensureNonEmptyPool(selectedPool());
   let v = customMode ? customVerb : randomVerbForCurrentCategory();
   let p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
-  if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
+  if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il";
   let a = answerFor(v, tense, p);
   let tries = 0;
   while(!a && tries < 200 && !customMode){
@@ -3515,13 +3707,17 @@ function makeQuestion(){
     v = randomVerbForCurrentCategory();
     if(tenseEl && tenseEl.value === "randomTense") tense = randomItem(quizTenses) || "present";
     p = tense === "imperatif" ? (randomItem(imperatifs) || "tu") : ((tense.startsWith("infinitif") || tense === "participes") ? "form" : (randomItem(pronouns) || "je"));
-    if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il/elle/on";
+    if(["falloir","pleuvoir"].includes(v) && !(tense === "imperatif" || tense.startsWith("infinitif") || tense === "participes")) p = "il";
     a = answerFor(v, tense, p);
     tries++;
   }
   if(!a && customMode) a = "This form is not available from the verified conjugation database";
   if(!a){ v = "parler"; tense = "present"; p = "je"; a = answerFor(v, tense, p) || "parle"; }
-  return {verb:v, prompt:p, tense:tense, answer:a, group:groupDisplay(v)};
+  const localRecord = localVerbData[normalise(v)];
+  const acceptedAnswers = localRecord && isReflexiveVerbText(localRecord.verb)
+    ? repairedReflexiveAcceptedAnswers(localRecord, tense, p, a)
+    : [a];
+  return {verb:v, prompt:p, tense:tense, answer:a, acceptedAnswers:acceptedAnswers, group:groupDisplay(v)};
 }
 
 
@@ -3583,7 +3779,8 @@ function checkAnswer(){
 
   attempts++;
 
-  if(normalise(input) === normalise(currentQuestion.answer)){
+  const accepted = Array.isArray(currentQuestion.acceptedAnswers) ? currentQuestion.acceptedAnswers : [currentQuestion.answer];
+  if(accepted.some(function(candidate){ return normalise(input) === normalise(candidate); })){
     questionLocked = true;
     streak++;
     score++;
