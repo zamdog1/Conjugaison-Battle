@@ -331,7 +331,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
 <section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For advanced tenses, ask students to say the auxiliary first, then the past participle. For spelling practice, they must type the whole phrase.</p></section>
 </aside>
-</main>
+<div class="feedback info"><strong>Fresh leaderboard season:</strong> previous bugged records are not used in this version. New best streaks include the date achieved.</div></main>
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
@@ -1867,7 +1867,7 @@ try {
   if (typeof firebase !== "undefined") {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    leaderboardRef = db.ref("leaderboard");
+    leaderboardRef = db.ref("leaderboard_v61_clean_start");
   }
 } catch (firebaseError) {
   console.warn("Firebase SDK could not start. REST/local fallback will be used.", firebaseError);
@@ -1932,29 +1932,46 @@ function withTimeout(promise, milliseconds){
 }
 function fetchLeaderboardRest(){
   if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
-  return withTimeout(fetch(firebaseRestUrl("leaderboard"), {cache:"no-store"}).then(function(response){
+  return withTimeout(fetch(firebaseRestUrl("leaderboard_v61_clean_start"), {cache:"no-store"}).then(function(response){
     if(!response.ok) throw new Error("REST leaderboard failed");
     return response.json();
   }), 3000);
 }
 function fetchStudentRecordRest(name){
   if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
-  return withTimeout(fetch(firebaseRestUrl("leaderboard/" + cleanStudentKey(name)), {cache:"no-store"}).then(function(response){
+  return withTimeout(fetch(firebaseRestUrl("leaderboard_v61_clean_start/" + cleanStudentKey(name)), {cache:"no-store"}).then(function(response){
     if(!response.ok) throw new Error("REST student record failed");
     return response.json();
   }), 3000);
 }
 function saveStudentRecordRest(name, data){
   if(typeof fetch === "undefined") return Promise.reject(new Error("fetch unavailable"));
-  return withTimeout(fetch(firebaseRestUrl("leaderboard/" + cleanStudentKey(name)), {
+  return withTimeout(fetch(firebaseRestUrl("leaderboard_v61_clean_start/" + cleanStudentKey(name)), {
     method:"PATCH",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify(data)
   }), 3000);
 }
 function getLocalLeaderboard(){
-  try { return JSON.parse(localStorage.getItem("conjugaisonBattleLocalLeaderboard") || "[]"); }
+  try { return JSON.parse(localStorage.getItem("conjugaisonBattleLocalLeaderboardV61") || "[]"); }
   catch(e){ return []; }
+}
+
+function formatAchievementDate(timestamp){
+  if(!timestamp) return "—";
+  try {
+    return new Date(timestamp).toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+  } catch(error) {
+    return "—";
+  }
+}
+
+function currentAchievementTimestamp(){
+  return Date.now();
 }
 
 function calculatePerformancePoints(score, attempts, accuracy, bestStreak, playSeconds){
@@ -1977,11 +1994,12 @@ function renderLeaderboardBoard(board, sourceLabel){
     if(status) status.textContent = sourceLabel || "Leaderboard ready.";
     return;
   }
-  container.innerHTML = '<table class="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Accuracy</th><th>Streak</th><th>Time</th><th>Performance</th></tr></thead><tbody>' +
+  container.innerHTML = '<table class="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Accuracy</th><th>Streak</th><th>Best achieved</th><th>Time</th><th>Performance</th></tr></thead><tbody>' +
     board.map(function(entry, index){
       const perf = entry.performancePoints || calculatePerformancePoints(entry.score || 0, entry.attempts || 0, entry.accuracy || 0, entry.bestStreak || entry.streak || 0, entry.playSeconds || entry.bestStreakSeconds || 0);
       const time = (entry.bestStreakTime && entry.bestStreakTime !== "00:00") ? entry.bestStreakTime : ((entry.playTime && entry.playTime !== "00:00") ? entry.playTime : "00:00");
-      return '<tr><td class="rank">' + (index + 1) + '</td><td>' + (entry.name || "Unnamed") + '</td><td>' + (entry.score || 0) + '/' + (entry.attempts || 0) + '</td><td>' + (entry.accuracy || 0) + '%</td><td>' + (entry.bestStreak || entry.streak || 0) + '</td><td>' + time + '</td><td>' + perf + '</td></tr>';
+      const achievedDate = formatAchievementDate(entry.bestStreakAchievedAt || entry.updatedAt || 0);
+      return '<tr><td class="rank">' + (index + 1) + '</td><td>' + (entry.name || "Unnamed") + '</td><td>' + (entry.score || 0) + '/' + (entry.attempts || 0) + '</td><td>' + (entry.accuracy || 0) + '%</td><td>' + (entry.bestStreak || entry.streak || 0) + '</td><td>' + achievedDate + '</td><td>' + time + '</td><td>' + perf + '</td></tr>';
     }).join("") + '</tbody></table>';
   if(status) status.textContent = sourceLabel || "Leaderboard loaded.";
 }
@@ -1993,36 +2011,44 @@ function saveLocalLeaderboardEntry(){
   const key = cleanStudentKey(name);
   const index = board.findIndex(function(item){ return cleanStudentKey(item.name || "") === key; });
   const old = index >= 0 ? board[index] : null;
-  const bestStreak = Math.max(streak || 0, old ? (old.bestStreak || old.streak || 0) : 0);
-  let bestStreakTime = old && old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
-  let bestStreakSeconds = old && old.bestStreakSeconds ? old.bestStreakSeconds : (currentPlaySeconds || 0);
-  if(streak >= (old ? (old.bestStreak || old.streak || 0) : 0)){
-    bestStreakTime = getCurrentPlayTimeText();
-    bestStreakSeconds = currentPlaySeconds || 0;
-  }
+  const oldBest = old ? Number(old.bestStreak || old.streak || 0) : 0;
+  const newBest = Math.max(Number(streak || 0), oldBest);
+  const isNewBest = Number(streak || 0) > oldBest;
+
   const entry = {
     name: name,
     score: score,
     attempts: attempts,
     accuracy: accuracy,
     streak: streak,
-    bestStreak: bestStreak,
+    bestStreak: newBest,
     playSeconds: currentPlaySeconds || 0,
     playTime: getCurrentPlayTimeText(),
-    bestStreakSeconds: bestStreakSeconds,
-    bestStreakTime: bestStreakTime,
-    performancePoints: calculatePerformancePoints(score, attempts, accuracy, bestStreak, currentPlaySeconds || 0),
+    bestStreakSeconds: isNewBest ? (currentPlaySeconds || 0) : Number(old && old.bestStreakSeconds || 0),
+    bestStreakTime: isNewBest ? getCurrentPlayTimeText() : ((old && old.bestStreakTime) || "00:00"),
+    bestStreakAchievedAt: isNewBest ? currentAchievementTimestamp() : Number(old && old.bestStreakAchievedAt || 0),
+    performancePoints: calculatePerformancePoints(score, attempts, accuracy, newBest, currentPlaySeconds || 0),
     updatedAt: Date.now()
   };
+
   if(index >= 0){
-    if((entry.performancePoints || 0) >= (board[index].performancePoints || 0) || bestStreak > (board[index].bestStreak || board[index].streak || 0)){
+    // Keep the stronger existing score if this session has not improved it,
+    // but always retain the genuine historical best-streak date.
+    const oldPerformance = Number(old.performancePoints || 0);
+    if(Number(entry.performancePoints || 0) >= oldPerformance || newBest > oldBest){
       board[index] = entry;
+    } else {
+      board[index].bestStreak = Math.max(Number(board[index].bestStreak || 0), newBest);
+      if(!board[index].bestStreakAchievedAt && entry.bestStreakAchievedAt){
+        board[index].bestStreakAchievedAt = entry.bestStreakAchievedAt;
+      }
     }
   } else {
     board.push(entry);
   }
+
   board.sort(function(a,b){ return (b.performancePoints || 0) - (a.performancePoints || 0); });
-  localStorage.setItem("conjugaisonBattleLocalLeaderboard", JSON.stringify(board.slice(0,20)));
+  localStorage.setItem("conjugaisonBattleLocalLeaderboardV61", JSON.stringify(board.slice(0,20)));
 }
 
 
@@ -2086,7 +2112,8 @@ function loadPersonalBestStreak(name){
   function showRecord(data){
     const bestStreak = data && data.bestStreak ? data.bestStreak : (data && data.streak ? data.streak : 0);
     const bestTime = data && data.bestStreakTime && data.bestStreakTime !== "00:00" ? data.bestStreakTime : (data && data.playTime && data.playTime !== "00:00" ? data.playTime : "00:00");
-    display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime;
+    const dateText = data && data.bestStreakAchievedAt ? " | Achieved: " + formatAchievementDate(data.bestStreakAchievedAt) : "";
+    display.textContent = "Your best streak so far: " + bestStreak + " 🔥  |  Time played: " + bestTime + dateText;
     display.classList.remove("hidden");
   }
   showRecord(null);
@@ -2107,7 +2134,7 @@ function loadPersonalBestStreak(name){
 
 
 function personalBestStorageKey(name){
-  return "conjugaisonBattlePersonalBest:" + cleanStudentKey(name);
+  return "conjugaisonBattlePersonalBestV61:" + cleanStudentKey(name);
 }
 function readPersonalBest(name){
   try { return JSON.parse(localStorage.getItem(personalBestStorageKey(name)) || "null"); }
@@ -2120,26 +2147,29 @@ function writePersonalBest(name, data){
 function updatePersonalBestStreak(){
   const name = getStudentName();
   if(name === "Unnamed student") return;
+
   const oldLocal = readPersonalBest(name) || {};
   const oldBest = Number(oldLocal.bestStreak || 0);
-  const newBest = Math.max(oldBest, Number(streak || 0));
-  const bestTime = (Number(streak || 0) > oldBest)
-    ? getCurrentPlayTimeText()
-    : (oldLocal.bestStreakTime || getCurrentPlayTimeText());
-  const bestSeconds = (Number(streak || 0) > oldBest)
-    ? (currentPlaySeconds || 0)
-    : Number(oldLocal.bestStreakSeconds || 0);
-  const personal = {bestStreak:newBest, bestStreakTime:bestTime, bestStreakSeconds:bestSeconds};
+  const current = Number(streak || 0);
+  const isNewBest = current > oldBest;
+  const newBest = Math.max(oldBest, current);
+
+  const personal = {
+    bestStreak: newBest,
+    bestStreakTime: isNewBest ? getCurrentPlayTimeText() : (oldLocal.bestStreakTime || "00:00"),
+    bestStreakSeconds: isNewBest ? (currentPlaySeconds || 0) : Number(oldLocal.bestStreakSeconds || 0),
+    bestStreakAchievedAt: isNewBest ? currentAchievementTimestamp() : Number(oldLocal.bestStreakAchievedAt || 0)
+  };
   writePersonalBest(name, personal);
 
   const display = document.getElementById("personalBestStreakDisplay");
   if(display){
-    display.textContent = "Your best streak so far: " + newBest + " 🔥  |  Time played: " + bestTime;
+    const dateText = personal.bestStreakAchievedAt ? " | Achieved: " + formatAchievementDate(personal.bestStreakAchievedAt) : "";
+    display.textContent = "Your best streak so far: " + newBest + " 🔥  |  Time played: " + personal.bestStreakTime + dateText;
     display.classList.remove("hidden");
   }
 
-  // Never PATCH a smaller current streak over a saved personal best.
-  if(Number(streak || 0) > oldBest){
+  if(isNewBest){
     saveStudentRecordRest(name, personal).catch(function(){});
     if(leaderboardRef){
       leaderboardRef.child(cleanStudentKey(name)).once("value").then(function(snapshot){
@@ -2161,14 +2191,11 @@ function updateOnlineLeaderboard(){
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
 
   function buildRecord(old){
-    const oldBest = old ? (old.bestStreak || old.streak || 0) : 0;
-    const newBest = Math.max(streak || 0, oldBest);
-    let bestTime = old && old.bestStreakTime && old.bestStreakTime !== "00:00" ? old.bestStreakTime : getCurrentPlayTimeText();
-    let bestSeconds = old && old.bestStreakSeconds ? old.bestStreakSeconds : (currentPlaySeconds || 0);
-    if(streak >= oldBest){
-      bestTime = getCurrentPlayTimeText();
-      bestSeconds = currentPlaySeconds || 0;
-    }
+    const oldBest = Number(old ? (old.bestStreak || old.streak || 0) : 0);
+    const current = Number(streak || 0);
+    const isNewBest = current > oldBest;
+    const newBest = Math.max(current, oldBest);
+
     return {
       name: name,
       score: score,
@@ -2178,8 +2205,9 @@ function updateOnlineLeaderboard(){
       bestStreak: newBest,
       playSeconds: currentPlaySeconds || 0,
       playTime: getCurrentPlayTimeText(),
-      bestStreakSeconds: bestSeconds,
-      bestStreakTime: bestTime,
+      bestStreakSeconds: isNewBest ? (currentPlaySeconds || 0) : Number(old && old.bestStreakSeconds || 0),
+      bestStreakTime: isNewBest ? getCurrentPlayTimeText() : ((old && old.bestStreakTime) || "00:00"),
+      bestStreakAchievedAt: isNewBest ? currentAchievementTimestamp() : Number(old && old.bestStreakAchievedAt || 0),
       performancePoints: calculatePerformancePoints(score, attempts, accuracy, newBest, currentPlaySeconds || 0),
       updatedAt: Date.now()
     };
