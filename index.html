@@ -331,7 +331,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
 <section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For advanced tenses, ask students to say the auxiliary first, then the past participle. For spelling practice, they must type the whole phrase.</p></section>
 </aside>
-<div class="feedback info"><strong>Subject agreement:</strong> the app now asks separately for <em>il</em>, <em>elle</em>, <em>on</em>, <em>ils</em> and <em>elles</em>. Reflexive compound forms use the matching agreement: <em>elle s’est démasquée</em>, <em>ils se sont démasqués</em>, <em>elles se sont démasquées</em>.</div></main>
+<div class="feedback info"><strong>Reflexive pronoun repair:</strong> reflexive simple tenses now display one pronoun only: <em>elle se dirigera</em>, never <em>elle se se dirigera</em>. Compound agreement remains matched to <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>.</div></main>
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
@@ -2553,6 +2553,17 @@ function reflexiveBaseVerb(v){
   return normalise(v).replace(/^se\s+/, "").replace(/^s'/, "");
 }
 
+function stripStoredReflexivePronoun(form){
+  return String(form || "")
+    .trim()
+    .replace(/^(?:m['’]\s*|t['’]\s*|s['’]\s*|me\s+|te\s+|se\s+|nous\s+|vous\s+)/i, "")
+    .trim();
+}
+
+function hasReflexiveImperativeEnding(form){
+  return /-(?:toi|nous|vous)$/i.test(String(form || "").trim());
+}
+
 function reflexiveSubjectClitic(person, following){
   const basePerson = formPerson(person);
   const clitics = {
@@ -2647,18 +2658,22 @@ function reflexiveCompoundVariants(record, tense, person){
 
 function reflexiveImperative(record, person){
   const basePerson = formPerson(person);
-  const core = record && record.forms && record.forms.imperatif && record.forms.imperatif[basePerson];
-  if(!core) return null;
+  const stored = record && record.forms && record.forms.imperatif && record.forms.imperatif[basePerson];
+  if(!stored) return null;
+  const clean = String(stored).trim();
+  if(hasReflexiveImperativeEnding(clean)) return clean;
   const ending = {"tu":"toi","nous":"nous","vous":"vous"}[basePerson];
   if(!ending) return null;
-  return String(core).trim() + "-" + ending;
+  return clean + "-" + ending;
 }
 
 function reflexiveSimpleForm(record, tense, person){
   const formKey = formPerson(person);
-  const core = record && record.forms && record.forms[tense] && record.forms[tense][formKey];
+  const stored = record && record.forms && record.forms[tense] && record.forms[tense][formKey];
+  if(!stored) return null;
+  const core = stripStoredReflexivePronoun(stored);
   if(!core) return null;
-  return reflexiveSubjectClitic(person, core) + String(core).trim();
+  return reflexiveSubjectClitic(person, core) + core;
 }
 
 function repairedReflexiveAnswer(record, tense, person){

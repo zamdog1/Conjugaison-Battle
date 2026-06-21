@@ -1,5 +1,5 @@
 {
-  "version": "v63",
+  "version": "v64",
   "description": "Classroom-filtered French verb database. Excludes malformed, hyphenated, acronym-like and obvious technical/coinage entries.",
   "count": 3704,
   "counts": {
@@ -25,5 +25,7 @@
     "ils",
     "elles"
   ],
-  "gender_agreement": "Reflexive compound forms now use exact agreement when the displayed subject is il, elle, ils or elles."
+  "gender_agreement": "Reflexive compound forms now use exact agreement when the displayed subject is il, elle, ils or elles.",
+  "reflexive_pronoun_repair": "Stored reflexive pronouns are removed from imported simple-tense forms before the app adds the one correct pronoun for the displayed subject.",
+  "imperative_repair": "Stored reflexive imperative endings such as -toi, -nous and -vous are not duplicated."
 }
