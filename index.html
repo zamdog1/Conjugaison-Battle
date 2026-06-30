@@ -331,7 +331,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
 <section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For advanced tenses, ask students to say the auxiliary first, then the past participle. For spelling practice, they must type the whole phrase.</p></section>
 </aside>
-<div class="feedback info"><strong>Reflexive pronoun repair:</strong> reflexive simple tenses now display one pronoun only: <em>elle se dirigera</em>, never <em>elle se se dirigera</em>. Compound agreement remains matched to <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>.</div><div class="feedback info"><strong>v66 fix:</strong> reflexive verbs now use <em>être</em> in all compound tenses, including <em>futur antérieur</em> and <em>conditionnel passé</em>, with agreement for <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>. The leaderboard also uses live Firebase updates with REST polling fallback.</div><div class="feedback info"><strong>v67 reflexive compound fix:</strong> reflexive compound tenses are generated only with <em>être</em>. Imported active forms such as <em>s’aura attendue</em> are removed and cannot be used.</div><div class="feedback info"><strong>v68 forced reflexive être:</strong> reflexive compound tenses are now intercepted before JSON, Lefff or fallback code can answer. Forms such as <em>s’aura attendue</em> are blocked; the app generates <em>se sera attendue</em> and <em>se serait attendue</em>.</div></main>
+<div class="feedback info"><strong>Reflexive pronoun repair:</strong> reflexive simple tenses now display one pronoun only: <em>elle se dirigera</em>, never <em>elle se se dirigera</em>. Compound agreement remains matched to <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>.</div><div class="feedback info"><strong>v66 fix:</strong> reflexive verbs now use <em>être</em> in all compound tenses, including <em>futur antérieur</em> and <em>conditionnel passé</em>, with agreement for <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>. The leaderboard also uses live Firebase updates with REST polling fallback.</div><div class="feedback info"><strong>v67 reflexive compound fix:</strong> reflexive compound tenses are generated only with <em>être</em>. Imported active forms such as <em>s’aura attendue</em> are removed and cannot be used.</div><div class="feedback info"><strong>v69 reflexive plural agreement:</strong> in compound tenses, <em>vous</em> now requires a plural past participle: <em>vous vous êtes lavés</em> or <em>lavées</em>. Singular forms such as <em>vous vous êtes lavé</em> are rejected.</div></main>
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
@@ -2686,9 +2686,9 @@ function reflexiveCompoundVariants(record, tense, person){
       prefix + addReflexiveAgreement(pp, true, true)
     ];
   } else if(basePerson === "vous"){
+    // In this classroom app, the pronoun "vous" is assessed as plural.
+    // Accept both gender agreements, but never a singular past participle.
     variants = [
-      prefix + addReflexiveAgreement(pp, false, false),
-      prefix + addReflexiveAgreement(pp, true, false),
       prefix + addReflexiveAgreement(pp, false, true),
       prefix + addReflexiveAgreement(pp, true, true)
     ];
