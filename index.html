@@ -331,7 +331,7 @@ button{border:0;padding:12px 18px;border-radius:12px;cursor:pointer;font-size:16
 <section class="card" style="margin-top:18px"><h2>Verb pool</h2><p class="tip">Showing verbs from the selected category.</p><div id="verbPool" class="verb-list"></div></section>
 <section class="card" style="margin-top:18px"><h2>Teacher tip</h2><p class="tip">For advanced tenses, ask students to say the auxiliary first, then the past participle. For spelling practice, they must type the whole phrase.</p></section>
 </aside>
-<div class="feedback info"><strong>Reflexive pronoun repair:</strong> reflexive simple tenses now display one pronoun only: <em>elle se dirigera</em>, never <em>elle se se dirigera</em>. Compound agreement remains matched to <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>.</div></main>
+<div class="feedback info"><strong>Reflexive pronoun repair:</strong> reflexive simple tenses now display one pronoun only: <em>elle se dirigera</em>, never <em>elle se se dirigera</em>. Compound agreement remains matched to <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>.</div><div class="feedback info"><strong>v66 fix:</strong> reflexive verbs now use <em>être</em> in all compound tenses, including <em>futur antérieur</em> and <em>conditionnel passé</em>, with agreement for <em>il</em>, <em>elle</em>, <em>ils</em> and <em>elles</em>. The leaderboard also uses live Firebase updates with REST polling fallback.</div><div class="feedback info"><strong>v67 reflexive compound fix:</strong> reflexive compound tenses are generated only with <em>être</em>. Imported active forms such as <em>s’aura attendue</em> are removed and cannot be used.</div></main>
 <footer>Single-file web app. Rename to index.html before uploading to a static web host.</footer>
 </div>
 
@@ -2211,7 +2211,8 @@ function updatePersonalBestStreak(){
 
 function updateOnlineLeaderboard(){
   saveLocalLeaderboardEntry();
-  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved. Online leaderboard will sync if connected.");
+  renderLeaderboardBoard(getLocalLeaderboard(), "Score saved locally. Updating live leaderboard…");
+
   const name = getStudentName();
   if(name === "Unnamed student") return;
   const accuracy = attempts === 0 ? 0 : Math.round((score / attempts) * 100);
@@ -2239,12 +2240,16 @@ function updateOnlineLeaderboard(){
     };
   }
 
+  // REST save: useful for Safari / SDK fallback. Then fetch all scores again.
   fetchStudentRecordRest(name).then(function(oldRest){
     return saveStudentRecordRest(name, buildRecord(oldRest || {}));
   }).then(function(){
-    connectLeaderboardRestFallback();
+    return fetchLeaderboardRest();
+  }).then(function(data){
+    if(!leaderboardLiveConnected) renderLeaderboardFromData(data || {});
   }).catch(function(){});
 
+  // Firebase live save: this triggers every connected browser through .on("value").
   if(!leaderboardRef) return;
   const studentRef = leaderboardRef.child(cleanStudentKey(name));
   studentRef.once("value").then(function(snapshot){
@@ -2254,13 +2259,18 @@ function updateOnlineLeaderboard(){
       current.performancePoints > (old.performancePoints || 0) ||
       current.score > (old.score || 0) ||
       current.bestStreak > (old.bestStreak || old.streak || 0);
+
     if(better){
-      studentRef.set(current);
-    } else if(current.bestStreak > (old.bestStreak || old.streak || 0) || !old.bestStreakTime || old.bestStreakTime === "00:00"){
-      studentRef.update({
+      return studentRef.set(current);
+    }
+
+    if(current.bestStreak > (old.bestStreak || old.streak || 0) || !old.bestStreakTime || old.bestStreakTime === "00:00"){
+      return studentRef.update({
         bestStreak: current.bestStreak,
         bestStreakSeconds: current.bestStreakSeconds,
-        bestStreakTime: current.bestStreakTime
+        bestStreakTime: current.bestStreakTime,
+        bestStreakAchievedAt: current.bestStreakAchievedAt,
+        updatedAt: Date.now()
       });
     }
   }).catch(function(){});
@@ -2280,23 +2290,52 @@ function renderLeaderboardFromData(data){
 }
 
 
+let leaderboardLiveConnected = false;
+let leaderboardRestPollTimer = null;
+
+function startLeaderboardRestPolling(){
+  if(leaderboardRestPollTimer) return;
+  leaderboardRestPollTimer = setInterval(function(){
+    if(leaderboardLiveConnected) return;
+    fetchLeaderboardRest()
+      .then(function(data){ renderLeaderboardFromData(data || {}); })
+      .catch(function(){});
+  }, 3000);
+}
+
 function connectLeaderboardRestFallback(){
   const localBoard = getLocalLeaderboard();
   renderLeaderboardBoard(localBoard, localBoard.length ? "Showing saved scores while online leaderboard connects." : "Leaderboard ready. Scores will appear after students answer.");
-  fetchLeaderboardRest().then(function(data){ renderLeaderboardFromData(data || {}); }).catch(function(){});
+  fetchLeaderboardRest()
+    .then(function(data){ renderLeaderboardFromData(data || {}); })
+    .catch(function(){});
+  startLeaderboardRestPolling();
 }
 
 function connectOnlineLeaderboard(){
   renderLeaderboardBoard(getLocalLeaderboard(), getLocalLeaderboard().length ? "Showing saved scores while online leaderboard connects." : "Leaderboard ready. Scores will appear after students answer.");
-  let loaded = false;
+  leaderboardLiveConnected = false;
+
   if(leaderboardRef){
     try {
-      leaderboardRef.on("value", function(snapshot){ loaded = true; renderLeaderboardFromData(snapshot.val() || {}); }, function(){ connectLeaderboardRestFallback(); });
-    } catch(error){ connectLeaderboardRestFallback(); }
+      leaderboardRef.on("value", function(snapshot){
+        leaderboardLiveConnected = true;
+        renderLeaderboardFromData(snapshot.val() || {});
+      }, function(){
+        leaderboardLiveConnected = false;
+        connectLeaderboardRestFallback();
+      });
+    } catch(error){
+      leaderboardLiveConnected = false;
+      connectLeaderboardRestFallback();
+    }
   } else {
     connectLeaderboardRestFallback();
   }
-  setTimeout(function(){ if(!loaded) connectLeaderboardRestFallback(); }, 1800);
+
+  setTimeout(function(){
+    if(!leaderboardLiveConnected) connectLeaderboardRestFallback();
+  }, 1800);
 }
 
 
@@ -2584,7 +2623,16 @@ function reflexiveSubjectClitic(person, following){
 function reflexivePastParticiple(record){
   const participes = String(record && record.forms && record.forms.participes || "");
   const pieces = participes.split("/");
-  return normalise((pieces[1] || pieces[0] || "").trim());
+  let pp = normalise((pieces[1] || pieces[0] || "").trim());
+
+  // Never allow imported reflexive pronouns or auxiliary phrases to become
+  // part of the past participle.
+  pp = pp
+    .replace(/^(?:m['’]\s*|t['’]\s*|s['’]\s*|me\s+|te\s+|se\s+|nous\s+|vous\s+)/i, "")
+    .replace(/^(?:suis|es|est|sommes|êtes|sont|étais|était|étions|étiez|étaient|fus|fut|fûmes|fûtes|furent|serai|seras|sera|serons|serez|seront|serais|serait|serions|seriez|seraient|ai|as|a|avons|avez|ont|avais|avait|avions|aviez|avaient|aurai|auras|aura|aurons|aurez|auront|aurais|aurait|aurions|auriez|auraient)\s+/i, "")
+    .trim();
+
+  return pp;
 }
 
 function addReflexiveAgreement(pp, feminine, plural){
@@ -2596,6 +2644,7 @@ function addReflexiveAgreement(pp, feminine, plural){
 }
 
 function reflexiveCompoundAuxiliary(tense, person){
+  // Reflexive verbs always use être in compound tenses.
   const table = {
     "passeCompose": {
       "je":"suis","tu":"es","il/elle/on":"est","nous":"sommes","vous":"êtes","ils/elles":"sont"
@@ -2607,10 +2656,10 @@ function reflexiveCompoundAuxiliary(tense, person){
       "je":"fus","tu":"fus","il/elle/on":"fut","nous":"fûmes","vous":"fûtes","ils/elles":"furent"
     },
     "futurAnterieur": {
-      "je":"aurai","tu":"auras","il/elle/on":"aura","nous":"aurons","vous":"aurez","ils/elles":"auront"
+      "je":"serai","tu":"seras","il/elle/on":"sera","nous":"serons","vous":"serez","ils/elles":"seront"
     },
     "conditionnelPasse": {
-      "je":"aurais","tu":"aurais","il/elle/on":"aurait","nous":"aurions","vous":"auriez","ils/elles":"auraient"
+      "je":"serais","tu":"serais","il/elle/on":"serait","nous":"serions","vous":"seriez","ils/elles":"seraient"
     }
   };
   const formKey = formPerson(person);
@@ -2625,16 +2674,12 @@ function reflexiveCompoundVariants(record, tense, person){
   const prefix = reflexiveSubjectClitic(person, aux) + aux + " ";
   const profile = subjectAgreementProfile(person);
 
-  // Exact teaching answers when the displayed subject tells us the gender:
-  // elle -> -e, ils -> -s, elles -> -es.
   if(profile && profile.fixed){
     return [prefix + addReflexiveAgreement(pp, profile.feminine, profile.plural)];
   }
 
-  // je, tu, nous and vous do not disclose gender in the prompt. Accept the
-  // grammatically possible agreement variants rather than marking one wrong.
-  let variants = [];
   const basePerson = formPerson(person);
+  let variants = [];
   if(basePerson === "nous"){
     variants = [
       prefix + addReflexiveAgreement(pp, false, true),
@@ -2696,7 +2741,7 @@ function repairedReflexiveAnswer(record, tense, person){
 
   if(tense === "participes"){
     const pp = reflexivePastParticiple(record);
-    const present = String(record.forms.participes || "").split("/")[0].trim();
+    const present = stripStoredReflexivePronoun(String(record.forms.participes || "").split("/")[0].trim());
     return present && pp ? "se " + present + " / " + pp : null;
   }
 
@@ -3294,7 +3339,11 @@ function simple(v, tense, p){
 function imperative(v,p){ if(irregular[v]?.imperatif?.[p])return irregular[v].imperatif[p]; let ans=simple(v,"present",p); if(p==="tu"&&v.endsWith("er"))ans=ans.replace(/s$/,""); return ans;}
 function compound(v, auxTense, p){
  const reflexive = groupOf(v)==="reflexive";
- const a=aux(v); const auxForm=simple(a,auxTense,p); if(!auxForm)return null; return reflexive ? reflexivePronoun(p)+" "+auxForm+" "+pastParticiple(v) : auxForm+" "+pastParticiple(v);}
+ const a = reflexive ? "être" : aux(v);
+ const auxForm=simple(a,auxTense,p);
+ if(!auxForm)return null;
+ return reflexive ? reflexivePronoun(p)+" "+auxForm+" "+pastParticiple(v) : auxForm+" "+pastParticiple(v);
+}
 function presentParticiple(v){
  const reflexive = groupOf(v)==="reflexive";
  const base = reflexive ? stripReflexive(v) : v;

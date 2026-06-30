@@ -1,5 +1,5 @@
 {
-  "version": "v66",
+  "version": "v67",
   "description": "Classroom-filtered French verb database. Excludes malformed, hyphenated, acronym-like and obvious technical/coinage entries.",
   "count": 3704,
   "counts": {
@@ -36,5 +36,8 @@
     "conditionnel passé": "être",
     "infinitif passé": "s'être + past participle"
   },
-  "live_leaderboard_fix": "Firebase realtime listener remains active; REST polling fallback refreshes every 3 seconds if Firebase SDK live connection is unavailable."
+  "live_leaderboard_fix": "Firebase realtime listener remains active; REST polling fallback refreshes every 3 seconds if Firebase SDK live connection is unavailable.",
+  "reflexive_compound_fix": "All reflexive compound answers generated with être. Imported reflexive compound forms removed from JSON.",
+  "removed_reflexive_compound_form_tables": 0,
+  "cleaned_reflexive_simple_forms": 0
 }
