@@ -1,5 +1,5 @@
 {
-  "version": "v67",
+  "version": "v68",
   "description": "Classroom-filtered French verb database. Excludes malformed, hyphenated, acronym-like and obvious technical/coinage entries.",
   "count": 3704,
   "counts": {
@@ -39,5 +39,6 @@
   "live_leaderboard_fix": "Firebase realtime listener remains active; REST polling fallback refreshes every 3 seconds if Firebase SDK live connection is unavailable.",
   "reflexive_compound_fix": "All reflexive compound answers generated with être. Imported reflexive compound forms removed from JSON.",
   "removed_reflexive_compound_form_tables": 0,
-  "cleaned_reflexive_simple_forms": 0
+  "cleaned_reflexive_simple_forms": 0,
+  "reflexive_forced_etre": "Reflexive compound tenses are intercepted before any imported or fallback answer and generated with être."
 }
